@@ -25,7 +25,9 @@ test("normalizes OSRM route duration and distance", () => {
 })
 
 test("OSRM provider errors never throw", () => {
-  assert.equal(Providers.normalizeOsrm({ code: "NoRoute", message: "Impossible" }).ok, false)
+  const noRoute = Providers.normalizeOsrm({ code: "NoRoute", message: "Impossible route between points" })
+  assert.equal(noRoute.ok, false)
+  assert.equal(noRoute.error.code, "no_route")
   assert.equal(Providers.normalizeOsrm({ code: "Ok", routes: [{ duration: "bad" }] }).error.code, "malformed_response")
 })
 
@@ -49,6 +51,12 @@ test("request builders validate capability and encode input", () => {
   assert.match(Providers.nominatimRequest("City Dental Clinic").url, /City%20Dental%20Clinic/)
   assert.equal(Providers.osrmRequest({ latitude: 10, longitude: 20 }, { latitude: 11, longitude: 21 }, "walk"), null)
   assert.equal(Providers.mapboxRequest({ latitude: 10, longitude: 20 }, { latitude: 11, longitude: 21 }, "drive", ""), null)
+})
+
+test("OSRM serializes longitude before latitude and rejects an obvious swapped coordinate", () => {
+  const request = Providers.osrmRequest({ latitude: 10, longitude: 20 }, { latitude: 11, longitude: 21 }, "drive")
+  assert.match(request.url, /driving\/20\.000000,10\.000000;21\.000000,11\.000000/)
+  assert.equal(Providers.coordinatePair({ latitude: 115, longitude: -31 }), "")
 })
 
 test("credential absence leaves zero-key capabilities intact", () => {

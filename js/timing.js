@@ -15,18 +15,25 @@ function minutes(value) {
 
 function effectiveTravelMinutes(departure) {
     var mode = String(departure && departure.timingMode || "auto").toLowerCase()
-    if (mode === "manual")
-        return Math.max(0, Math.round(finiteNumber(departure && departure.manualTravelMinutes, 0)))
+    if (mode === "manual") {
+        var manual = finiteNumber(departure && departure.manualTravelMinutes, NaN)
+        return isFinite(manual) && manual >= 0 ? Math.round(manual) : NaN
+    }
     var automatic = finiteNumber(departure && departure.autoTravelMinutes, NaN)
     if (!isFinite(automatic)) automatic = finiteNumber(departure && departure.routeTravelMinutes, NaN)
     if (!isFinite(automatic)) automatic = finiteNumber(departure && departure.travelMinutes, NaN)
-    if (!isFinite(automatic)) automatic = finiteNumber(departure && departure.manualTravelMinutes, 0)
-    return Math.max(0, Math.round(automatic))
+    if (!isFinite(automatic)) automatic = finiteNumber(departure && departure.manualTravelMinutes, NaN)
+    return isFinite(automatic) && automatic >= 0 ? Math.round(automatic) : NaN
+}
+
+function hasUsableTravelTime(departure) {
+    return isFinite(effectiveTravelMinutes(departure))
 }
 
 function manualTravelMinutesForSwitch(departure) {
     var preserved = finiteNumber(departure && departure.manualTravelMinutes, NaN)
-    return isFinite(preserved) && preserved >= 0 ? Math.round(preserved) : effectiveTravelMinutes(departure)
+    var effective = effectiveTravelMinutes(departure)
+    return isFinite(preserved) && preserved >= 0 ? Math.round(preserved) : (isFinite(effective) ? effective : 20)
 }
 
 function derive(departure) {
@@ -45,6 +52,7 @@ function derive(departure) {
         leaveTime: leaveTime,
         getReadyTime: getReadyTime,
         effectiveTravelMinutes: travel,
+        timingReliable: isFinite(travel),
         logisticsMinutes: Math.max(0, Math.round(finiteNumber(departure && departure.parkingMinutes, 0)))
             + Math.max(0, Math.round(finiteNumber(departure && departure.walkingMinutes, 0)))
     }
@@ -86,15 +94,16 @@ function dayLabel(ms, now) {
     var start = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()
     var target = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
     var days = Math.round((target - start) / DAY_MS)
-    if (days === 0) return "TODAY"
-    if (days === 1) return "TOMORROW"
-    return ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][date.getDay()] + " " + pad(date.getDate()) + " "
-        + ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"][date.getMonth()]
+    if (days === 0) return "Today"
+    if (days === 1) return "Tomorrow"
+    return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][date.getDay()] + " " + pad(date.getDate()) + " "
+        + ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][date.getMonth()]
 }
 
 function status(departure, now) {
     var times = derive(departure)
     if (now > times.eventTime) return "EXPIRED"
+    if (!times.timingReliable) return "NEEDS ATTENTION"
     if (now >= times.targetArrivalTime) return "DEPARTED"
     if (now >= times.leaveTime) return "LEAVE NOW"
     if (times.leaveTime - now <= 10 * MINUTE_MS) return "LEAVE SOON"
@@ -125,15 +134,15 @@ function nextDeparture(departures, now) {
 }
 
 function countdown(ms) {
-    if (ms <= 0) return "NOW"
+    if (ms <= 0) return "now"
     var totalMinutes = Math.ceil(ms / MINUTE_MS)
-    if (totalMinutes < 60) return totalMinutes + " MIN"
+    if (totalMinutes < 60) return totalMinutes + " min"
     var hours = Math.floor(totalMinutes / 60)
     var remaining = totalMinutes % 60
-    if (hours < 24) return remaining ? hours + "H " + remaining + "M" : hours + "H"
+    if (hours < 24) return remaining ? hours + "h " + remaining + "m" : hours + "h"
     var days = Math.floor(hours / 24)
     var leftoverHours = hours % 24
-    return leftoverHours ? days + "D " + leftoverHours + "H" : days + "D"
+    return leftoverHours ? days + "d " + leftoverHours + "h" : days + "d"
 }
 
 function compactCountdown(ms) {
@@ -147,22 +156,24 @@ function compactCountdown(ms) {
 }
 
 function nextAction(departure, now) {
-    if (!departure) return "NO UPCOMING DEPARTURES"
+    if (!departure) return "No upcoming departures"
     var times = derive(departure)
-    var title = String(departure.title || "DEPARTURE").toUpperCase()
-    if (now >= times.leaveTime) return "LEAVE NOW FOR " + title
-    if (now >= times.getReadyTime) return "LEAVE FOR " + title + " IN " + countdown(times.leaveTime - now)
-    if (times.getReadyTime - now <= DAY_MS) return "GET READY IN " + countdown(times.getReadyTime - now)
-    return "NEXT DEPARTURE " + dayLabel(times.eventTime, now) + " " + localTime(times.eventTime)
+    if (!times.timingReliable) return "Departure time needs attention"
+    if (now >= times.targetArrivalTime) return "You should already be on your way"
+    if (now >= times.leaveTime) return "Leave now"
+    if (now >= times.getReadyTime) return "Leave in " + countdown(times.leaveTime - now)
+    if (times.getReadyTime - now <= DAY_MS) return "Get ready in " + countdown(times.getReadyTime - now)
+    return "Next departure " + dayLabel(times.eventTime, now).toLowerCase() + " at " + localTime(times.eventTime)
 }
 
 function barText(departure, now) {
     if (!departure) return "󰁕  No departures"
     var times = derive(departure)
-    if (now >= times.leaveTime) return "⚠  LEAVE NOW"
-    var remaining = times.leaveTime - now
     var title = String(departure.title || "Departure")
     if (title.length > 22) title = title.slice(0, 21) + "…"
+    if (!times.timingReliable) return "󰁕  " + title + " · Check timing"
+    if (now >= times.leaveTime) return "⚠  Leave now"
+    var remaining = times.leaveTime - now
     if (remaining <= 10 * MINUTE_MS) return "󰁕  " + title + " · " + compactCountdown(remaining)
     return "󰁕  " + title + " · Leave " + compactCountdown(remaining)
 }

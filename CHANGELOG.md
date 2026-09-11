@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 — 2026-09-11
+
+- Redesign the panel around destination, next action, leave time, travel duration, and timing source.
+- Add a concise first-run state and a destination-first editor with Automatic/Fixed time wording and progressive disclosure.
+- Keep reliable departures calm during provider failures; move provider identity and raw diagnostics into an optional details section.
+- Add contextual Retry and Edit locations recovery actions without hiding genuine blocking timing failures.
+- Normalize OSRM `NoRoute`, preserve its diagnostic code, and verify correct longitude/latitude request ordering.
+- Preserve damaged departures with missing timing for repair, while suppressing unreliable leave calculations and notifications.
+- Add a human-readable UX contract plus fallback, empty-state, long-label, degraded-timing, routing, and privacy regression coverage.
+
 ## 0.2.1 — 2026-09-11
 
 - Add an explicit mutually exclusive AUTO/MANUAL timing mode with separate persisted durations.

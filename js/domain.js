@@ -47,7 +47,7 @@ function durationFallback(primary, secondary, fallback) {
     return isFinite(value) ? value : fallback
 }
 
-function validate(input, now, requireFuture) {
+function validate(input, now, requireFuture, allowMissingTravel) {
     var errors = []
     var title = cleanText(input && input.title, 80)
     var destination = cleanText(input && input.destination, 120)
@@ -68,6 +68,7 @@ function validate(input, now, requireFuture) {
     if (!isFinite(arrivalTime)) errors.push("Arrival date and time are invalid")
     else if (requireFuture && arrivalTime <= Number(now)) errors.push("Arrival must be in the future")
     for (var i = 0; i < fields.length; i++) {
+        if (i === 0 && allowMissingTravel && !isFinite(fields[i][1])) continue
         if (!isFinite(fields[i][1]) || fields[i][1] < 0 || fields[i][1] > MAX_DURATION_MINUTES)
             errors.push(fields[i][0] + " must be between 0 and " + MAX_DURATION_MINUTES + " minutes")
     }
@@ -90,7 +91,7 @@ function normalized(input) {
         arrivalTime: Number(input.arrivalTime),
         timingMode: mode,
         manualTravelMinutes: isFinite(manualTravel) ? manualTravel : null,
-        autoTravelMinutes: autoTravel,
+        autoTravelMinutes: isFinite(autoTravel) ? autoTravel : null,
         arrivalBufferMinutes: duration(input.arrivalBufferMinutes),
         preparationMinutes: duration(input.preparationMinutes),
         parkingMinutes: duration(input.parkingMinutes || 0),
@@ -112,6 +113,7 @@ function normalized(input) {
     record.routeProvider = cleanText(input.routeProvider, 40)
     record.routeStatus = cleanText(input.routeStatus, 30)
     record.routeError = cleanText(input.routeError, 180)
+    record.routeErrorCode = cleanText(input.routeErrorCode, 40).toLowerCase()
     record.routeReason = cleanText(input.routeReason, 60)
     record.routeTrafficAware = input.routeTrafficAware === true
     return record
@@ -153,14 +155,17 @@ function preserveRoute(existing, input) {
     if (!sameSchedule(existing, input)) return result
     var routeFields = ["originCoordinates", "destinationCoordinates", "routeObservedMinutes", "routeTypicalMinutes",
         "trafficDelayMinutes", "routeDistanceMeters", "routeCheckedAt", "routeAdjustmentMinutes", "routeCandidateMinutes",
-        "routeCandidateSamples", "routeProvider", "routeStatus", "routeError", "routeReason", "routeTrafficAware"]
+        "routeCandidateSamples", "routeProvider", "routeStatus", "routeError", "routeErrorCode", "routeReason", "routeTrafficAware"]
     for (var i = 0; i < routeFields.length; i++) if (result[routeFields[i]] === undefined) result[routeFields[i]] = existing[routeFields[i]]
     return result
 }
 
 function restore(input) {
     if (!input || !input.id) return null
-    var check = validate(input, 0, false)
+    // Keep otherwise valid persisted departures visible when their timing value is
+    // absent or damaged. The UI can then explain the blocking state and offer Edit,
+    // instead of silently discarding the user's departure during restore.
+    var check = validate(input, 0, false, true)
     if (!check.valid) return null
     var record = normalized(input)
     record.id = String(input.id)

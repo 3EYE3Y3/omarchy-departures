@@ -7,7 +7,7 @@ function keyFor(departure, kind) {
 function dueEvents(departure, now, sent, times) {
     var state = sent || {}
     var result = []
-    if (!departure || !times || now > times.eventTime) return result
+    if (!departure || !times || times.timingReliable === false || now > times.eventTime) return result
     var leaveKey = keyFor(departure, "leave")
     var readyKey = keyFor(departure, "ready")
     if (now >= times.leaveTime) {

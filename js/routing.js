@@ -109,6 +109,7 @@ function applyResult(departure, normalized, now) {
     if (!normalized || !normalized.ok) {
         copy.routeStatus = "fallback"
         copy.routeError = normalized && normalized.error ? String(normalized.error.message || "Route unavailable") : "Route unavailable"
+        copy.routeErrorCode = normalized && normalized.error ? String(normalized.error.code || "route_failed") : "route_failed"
         copy.routeCheckedAt = Number(now)
         return { departure: copy, adjusted: false }
     }
@@ -124,6 +125,7 @@ function applyResult(departure, normalized, now) {
     copy.routeCheckedAt = Number(now)
     copy.routeStatus = "live"
     copy.routeError = ""
+    copy.routeErrorCode = ""
     if (decision.accepted) {
         copy.autoTravelMinutes = Number(value.travelMinutes)
         copy.routeCandidateMinutes = null

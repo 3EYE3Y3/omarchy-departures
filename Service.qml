@@ -303,6 +303,11 @@ Item {
         settings = normalizedSettings(merged)
         requestSave()
         if (settings.networkEnabled) Qt.callLater(function() { service.prepareAllNetwork() })
+        else {
+            networkQueue = []
+            activeNetworkJob = null
+            if (networkProcess.running) networkProcess.running = false
+        }
         return { ok: true, value: settings, capabilities: capabilities }
     }
 
@@ -407,6 +412,21 @@ Item {
 
     function discardQueuedNetworkFor(id) {
         networkQueue = networkQueue.filter(function(job) { return String(job.departureId || "") !== String(id) })
+    }
+
+    function retryRoute(id) {
+        var departure = recordById(id)
+        if (!departure) return { ok: false, errors: ["Departure no longer exists"] }
+        if (!Routing.isAutomaticTiming(departure)) return { ok: false, errors: ["Select Automatic travel time before retrying"] }
+        if (!settings.networkEnabled) return { ok: false, errors: ["Turn on automatic routing before retrying"] }
+        var retained = {}
+        var marker = ":" + String(id) + ":"
+        for (var key in networkBackoff) if (String(key).indexOf(marker) === -1) retained[key] = networkBackoff[key]
+        networkBackoff = retained
+        discardQueuedNetworkFor(id)
+        providerMessage = ""
+        prepareNetworkFor(id, true)
+        return { ok: true }
     }
 
     function prepareNetworkFor(id, immediate) {
@@ -515,7 +535,16 @@ Item {
         var departure = recordById(job.departureId)
         if (!departure || !Routing.isAutomaticTiming(departure)) return
         if (!result.ok) {
-            providerMessage = result.error.message + "; using remembered/manual timing"
+            var failed = {}
+            for (var field in departure) failed[field] = departure[field]
+            failed.routeStatus = "fallback"
+            failed.routeError = String(result.error.message || "Location could not be found")
+            failed.routeErrorCode = String(result.error.code || "not_found")
+            failed.routeCheckedAt = Date.now()
+            departures = Domain.upsert(departures, failed)
+            providerMessage = "Using saved travel time"
+            refresh(Date.now())
+            requestSave()
             return
         }
         var copy = {}
@@ -554,19 +583,23 @@ Item {
         }
         var stale = Routing.cached(routeCache, job.cacheKey, now, true)
         if (stale) {
-            applyRouteResult(job.departureId, { ok: true, provider: stale.provider, value: stale.value }, now, true)
-            providerMessage = result.error.message + "; using cached route"
+            applyRouteResult(job.departureId, { ok: true, provider: stale.provider, value: stale.value }, now, true, result.error)
+            providerMessage = "Using a saved route estimate"
         } else {
             applyRouteResult(job.departureId, result, now, false)
-            providerMessage = result.error.message + "; using remembered/manual timing"
+            providerMessage = "Using saved travel time"
         }
     }
 
-    function applyRouteResult(id, result, now, cached) {
+    function applyRouteResult(id, result, now, cached, fallbackError) {
         var departure = recordById(id)
         if (!departure || !Routing.isAutomaticTiming(departure)) return
         var applied = Routing.applyResult(departure, result, now)
-        applied.departure.routeStatus = result.ok ? (cached ? "cached" : "live") : "fallback"
+        applied.departure.routeStatus = fallbackError ? "fallback" : (result.ok ? (cached ? "cached" : "live") : "fallback")
+        if (fallbackError) {
+            applied.departure.routeError = String(fallbackError.message || "Automatic routing unavailable")
+            applied.departure.routeErrorCode = String(fallbackError.code || "route_failed")
+        }
         departures = Domain.upsert(departures, applied.departure)
         refresh(now)
         requestSave()
@@ -664,6 +697,7 @@ Item {
         function natural(text: string): string { return service.resultJson(service.saveNatural(text)) }
         function update(payloadJson: string): string { return service.updateJson(payloadJson) }
         function remove(id: string): string { return JSON.stringify({ ok: service.deleteDeparture(id) }) }
+        function retry(id: string): string { return service.resultJson(service.retryRoute(id)) }
     }
 
     FileView {

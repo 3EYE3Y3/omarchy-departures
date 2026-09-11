@@ -13,6 +13,7 @@ Usage:
   departures add '<json>'
   departures update '<json-with-id>'
   departures remove <id>
+  departures retry <id>
   departures ready <id> <item>
   departures places
   departures place set '<json>'
@@ -48,7 +49,7 @@ add)
     exec omarchy-shell io.github.3eye3y3.departures natural "$2"
   fi
   ;;
-update | remove)
+update | remove | retry)
   [[ $# -eq 2 ]] || usage
   exec omarchy-shell io.github.3eye3y3.departures "$action" "$2"
   ;;

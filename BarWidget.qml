@@ -86,6 +86,10 @@ BarWidget {
         function remove(id: string): string {
             return JSON.stringify({ ok: root.departuresService ? root.departuresService.deleteDeparture(id) : false })
         }
+        function retry(id: string): string {
+            return root.departuresService ? root.departuresService.resultJson(root.departuresService.retryRoute(id))
+                : JSON.stringify({ ok: false, errors: ["Departures service is unavailable"] })
+        }
         function ready(id: string, item: string): string {
             return JSON.stringify({ ok: root.departuresService ? root.departuresService.toggleReadyItem(id, item) : false })
         }

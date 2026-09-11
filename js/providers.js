@@ -1,6 +1,6 @@
 .pragma library
 
-var USER_AGENT = "Departures/0.2.1 (+https://github.com/3EYE3Y3/omarchy-departures)"
+var USER_AGENT = "Departures/0.3.0 (+https://github.com/3EYE3Y3/omarchy-departures)"
 
 function cleanText(value) {
     return String(value || "").replace(/^\s+|\s+$/g, "")
@@ -75,7 +75,11 @@ function normalizeOsrm(raw) {
     var parsed = typeof raw === "string" ? parseJson(raw, "osrm") : { ok: true, value: raw }
     if (!parsed.ok) return parsed.error
     var data = parsed.value || {}
-    if (data.code !== "Ok") return fail("osrm", cleanText(data.code || "route_failed").toLowerCase(), cleanText(data.message || "No route found"), false, 0)
+    if (data.code !== "Ok") {
+        var code = cleanText(data.code || "route_failed").toLowerCase()
+        if (code === "noroute") code = "no_route"
+        return fail("osrm", code, cleanText(data.message || "No route found"), false, 0)
+    }
     if (!Array.isArray(data.routes) || !data.routes.length)
         return fail("osrm", "not_found", "No route found", false, 404)
     var route = data.routes[0] || {}
