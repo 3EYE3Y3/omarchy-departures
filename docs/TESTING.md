@@ -19,6 +19,8 @@ Departures 0.2.0 was developed and accepted against Omarchy 4.0.3-1 and Quickshe
 - schema-v1-to-v2 state-envelope migration
 - keyless navigation URL generation and absent-credential capability behavior
 
+The final suite contains 61 tests. It passed locally and in GitHub Actions on Node.js 22.
+
 `scripts/quality` additionally runs the installed Omarchy manifest validator, QML lint, Bash syntax checks, ShellCheck when available, and Git whitespace checks.
 
 The installed Qt `qmllint` cannot statically infer the members of Omarchy's dynamic `Style.font` object, injected bar facade, or `Loader.item`, and Quickshell's metadata does not expose `QProcess::ExitStatus` to the linter. It reports those known `missing-property`/signal-metadata warnings while returning success. Live shell testing produced no Departures runtime warning. ShellCheck was not installed; `bash -n` passed for both scripts.
