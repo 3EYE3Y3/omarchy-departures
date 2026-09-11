@@ -146,11 +146,11 @@ Panel {
                         TextField {
                             id: quickField
                             Layout.fillWidth: true
-                            placeholderText: "Dentist tomorrow at 2pm at Example Clinic"
+                            placeholderText: "Quick add: Morning meeting tomorrow at 9am at Central Office"
                             maximumLength: 240
                             onAccepted: root.createNatural()
                         }
-                        Button { text: "ADD"; selected: true; focusable: true; onClicked: root.createNatural() }
+                        Button { text: "+  ADD"; selected: true; focusable: true; onClicked: root.beginCreate() }
                     }
                     Text {
                         visible: root.quickError !== ""
@@ -266,7 +266,9 @@ Panel {
                                         Item { Layout.preferredWidth: Style.space(102) }
                                         Text {
                                             Layout.fillWidth: true
-                                            text: row.modelData.effectiveTravelMinutes + " min " + Profiles.transportLabel(row.modelData.transportMode).toLowerCase()
+                                            text: String(row.modelData.timingMode || "auto").toUpperCase() + "  ·  "
+                                                + row.modelData.effectiveTravelMinutes + " min " + Profiles.transportLabel(row.modelData.transportMode).toLowerCase()
+                                                + (row.modelData.timingMode === "auto" && row.modelData.routeProvider ? "  ·  " + String(row.modelData.routeProvider).toUpperCase() : "")
                                                 + (Number(row.modelData.trafficDelayMinutes || 0) > 0 ? "  ·  TRAFFIC +" + row.modelData.trafficDelayMinutes + " min" : "")
                                                 + "  ·  " + Number(row.modelData.parkingMinutes || 0) + " parking"
                                                 + "  ·  " + Number(row.modelData.walkingMinutes || 0) + " walk"
@@ -280,12 +282,12 @@ Panel {
                                     }
 
                                     Text {
-                                        visible: Number(row.modelData.routeAdjustmentMinutes || 0) !== 0
+                                        visible: row.modelData.timingMode === "auto" && Number(row.modelData.routeAdjustmentMinutes || 0) !== 0
                                         width: parent.width - Style.space(102)
                                         x: Style.space(102)
                                         text: (Number(row.modelData.routeAdjustmentMinutes || 0) > 0 ? "LEAVE MOVED EARLIER" : "LEAVE MOVED LATER")
                                             + "  ·  current " + row.modelData.effectiveTravelMinutes + " min"
-                                            + " vs normal " + row.modelData.travelMinutes + " min"
+                                            + " vs normal " + (row.modelData.effectiveTravelMinutes - Number(row.modelData.routeAdjustmentMinutes || 0)) + " min"
                                             + (row.modelData.routeProvider ? "  ·  " + String(row.modelData.routeProvider).toUpperCase() : "")
                                         color: Number(row.modelData.routeAdjustmentMinutes || 0) > 0 ? Color.urgent : Color.accent
                                         font.family: "monospace"

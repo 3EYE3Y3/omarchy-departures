@@ -6,22 +6,22 @@ const Natural = loadQmlJs(new URL("../js/natural.js", import.meta.url))
 const now = new Date(2026, 8, 11, 10, 0).getTime()
 
 test("parses the product's canonical natural departure", () => {
-  const result = Natural.parse("Dentist tomorrow at 2pm at Example Clinic", now)
+  const result = Natural.parse("Dentist tomorrow at 2pm at City Dental Clinic", now)
   assert.equal(result.ok, true)
   assert.equal(result.value.title, "Dentist")
-  assert.equal(result.value.destination, "Example Clinic")
+  assert.equal(result.value.destination, "City Dental Clinic")
   assert.equal(new Date(result.value.arrivalTime).getDate(), 12)
   assert.equal(new Date(result.value.arrivalTime).getHours(), 14)
 })
 test("parses weekday, 24-hour time, and destination", () => {
-  const result = Natural.parse("Hockey Friday at 18:30 at Example Ice Arena", now)
+  const result = Natural.parse("Gym Friday at 18:30 at City Fitness Centre", now)
   assert.equal(result.ok, true)
-  assert.equal(result.value.title, "Hockey")
-  assert.equal(result.value.destination, "Example Ice Arena")
+  assert.equal(result.value.title, "Gym")
+  assert.equal(result.value.destination, "City Fitness Centre")
 })
 
 test("time without a date selects the next occurrence", () => {
-  const result = Natural.parse("Gym at 9am at Example Fitness", now)
+  const result = Natural.parse("Airport at 9am at International Terminal", now)
   assert.equal(new Date(result.value.arrivalTime).getDate(), 12)
 })
 

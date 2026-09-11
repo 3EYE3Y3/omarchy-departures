@@ -5,9 +5,9 @@ import { loadQmlJs } from "./load-qml-js.mjs"
 const Providers = loadQmlJs(new URL("../js/providers.js", import.meta.url))
 
 test("normalizes Nominatim into a vendor-neutral place", () => {
-  const result = Providers.normalizeNominatim(JSON.stringify([{ lat: "10.056", lon: "20.748", display_name: "Example Clinic", osm_type: "way", osm_id: 42 }]))
+  const result = Providers.normalizeNominatim(JSON.stringify([{ lat: "10.5", lon: "20.5", display_name: "City Dental Clinic, 45 Sample Road", osm_type: "way", osm_id: 42 }]))
   assert.equal(result.ok, true)
-  assert.deepEqual({ ...result.value.coordinates }, { latitude: 10.056, longitude: 20.748 })
+  assert.deepEqual({ ...result.value.coordinates }, { latitude: 10.5, longitude: 20.5 })
   assert.equal(result.value.providerId, "way42")
 })
 
@@ -46,9 +46,9 @@ test("invalid Mapbox credentials are a non-retryable normalized failure", () => 
 })
 
 test("request builders validate capability and encode input", () => {
-  assert.match(Providers.nominatimRequest("Example Clinic").url, /Example%20Clinic/)
-  assert.equal(Providers.osrmRequest({ latitude: 10, longitude: 20 }, { latitude: 10.5, longitude: 20.5 }, "walk"), null)
-  assert.equal(Providers.mapboxRequest({ latitude: 10, longitude: 20 }, { latitude: 10.5, longitude: 20.5 }, "drive", ""), null)
+  assert.match(Providers.nominatimRequest("City Dental Clinic").url, /City%20Dental%20Clinic/)
+  assert.equal(Providers.osrmRequest({ latitude: 10, longitude: 20 }, { latitude: 11, longitude: 21 }, "walk"), null)
+  assert.equal(Providers.mapboxRequest({ latitude: 10, longitude: 20 }, { latitude: 11, longitude: 21 }, "drive", ""), null)
 })
 
 test("credential absence leaves zero-key capabilities intact", () => {

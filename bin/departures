@@ -9,7 +9,7 @@ Usage:
   departures state
   departures snapshot
   departures capabilities
-  departures add "Dentist tomorrow at 2pm at Example Clinic"
+  departures add "Dentist tomorrow at 2pm at City Dental Clinic"
   departures add '<json>'
   departures update '<json-with-id>'
   departures remove <id>

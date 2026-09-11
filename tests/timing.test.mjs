@@ -7,10 +7,12 @@ const Timing = loadQmlJs(new URL("../js/timing.js", import.meta.url))
 function departure(arrivalTime, overrides = {}) {
   return {
     id: "one",
-    title: "Dinner",
-    destination: "Example City",
+    title: "Morning meeting",
+    destination: "Central Office",
     arrivalTime,
-    travelMinutes: 23,
+    timingMode: "auto",
+    manualTravelMinutes: 18,
+    autoTravelMinutes: 23,
     arrivalBufferMinutes: 10,
     preparationMinutes: 30,
     ...overrides,
@@ -38,24 +40,51 @@ test("supports zero arrival buffer", () => {
 
 test("supports zero travel duration", () => {
   const event = new Date(2026, 8, 11, 18, 30).getTime()
-  const result = Timing.derive(departure(event, { travelMinutes: 0 }))
+  const result = Timing.derive(departure(event, { autoTravelMinutes: 0 }))
   assert.equal(result.leaveTime, result.targetArrivalTime)
 })
 
 test("arrival-first calculation includes parking and walking before safety arrival", () => {
   const event = new Date(2026, 8, 11, 18, 30).getTime()
-  const result = Timing.derive(departure(event, { travelMinutes: 30, parkingMinutes: 5, walkingMinutes: 8, arrivalBufferMinutes: 10 }))
+  const result = Timing.derive(departure(event, { autoTravelMinutes: 30, parkingMinutes: 5, walkingMinutes: 8, arrivalBufferMinutes: 10 }))
   assert.equal(Timing.localTime(result.targetArrivalTime), "18:20")
   assert.equal(Timing.localTime(result.routeArrivalTime), "18:07")
   assert.equal(Timing.localTime(result.leaveTime), "17:37")
 })
 
-test("accepted dynamic route duration is authoritative without changing baseline", () => {
+test("automatic duration is authoritative without changing the preserved manual value", () => {
   const event = new Date(2026, 8, 11, 18, 30).getTime()
-  const dep = departure(event, { travelMinutes: 31, routeTravelMinutes: 43 })
+  const dep = departure(event, { manualTravelMinutes: 31, autoTravelMinutes: 43 })
   const result = Timing.derive(dep)
   assert.equal(result.effectiveTravelMinutes, 43)
-  assert.equal(dep.travelMinutes, 31)
+  assert.equal(dep.manualTravelMinutes, 31)
+})
+
+test("manual duration is authoritative even when automatic data exists", () => {
+  const event = new Date(2026, 8, 11, 18, 30).getTime()
+  const result = Timing.derive(departure(event, { timingMode: "manual", manualTravelMinutes: 25, autoTravelMinutes: 43 }))
+  assert.equal(result.effectiveTravelMinutes, 25)
+  assert.equal(Timing.localTime(result.leaveTime), "17:55")
+})
+
+test("auto to manual seeds from effective timing and switching back restores automatic authority", () => {
+  const event = new Date(2026, 8, 11, 18, 30).getTime()
+  const automatic = departure(event, { manualTravelMinutes: undefined, autoTravelMinutes: 27 })
+  const seeded = Timing.manualTravelMinutesForSwitch(automatic)
+  assert.equal(seeded, 27)
+  const manual = { ...automatic, timingMode: "manual", manualTravelMinutes: seeded }
+  assert.equal(Timing.derive(manual).effectiveTravelMinutes, 27)
+  manual.manualTravelMinutes = 25
+  assert.equal(Timing.derive(manual).effectiveTravelMinutes, 25)
+  const backToAutomatic = { ...manual, timingMode: "auto" }
+  assert.equal(Timing.derive(backToAutomatic).effectiveTravelMinutes, 27)
+  assert.equal(backToAutomatic.manualTravelMinutes, 25)
+})
+
+test("a null uninitialized manual value seeds from refreshed automatic timing", () => {
+  const event = new Date(2026, 8, 11, 18, 30).getTime()
+  const automatic = departure(event, { manualTravelMinutes: null, autoTravelMinutes: 37 })
+  assert.equal(Timing.manualTravelMinutesForSwitch(automatic), 37)
 })
 
 test("sorts multiple departures and selects the next unexpired one", () => {
@@ -75,7 +104,7 @@ test("handles future dates and next-action guidance", () => {
 
 test("handles a departure across midnight", () => {
   const event = new Date(2026, 8, 12, 0, 20).getTime()
-  const result = Timing.derive(departure(event, { travelMinutes: 30, arrivalBufferMinutes: 5, preparationMinutes: 20 }))
+  const result = Timing.derive(departure(event, { autoTravelMinutes: 30, arrivalBufferMinutes: 5, preparationMinutes: 20 }))
   assert.equal(Timing.localDate(result.leaveTime), "2026-09-11")
   assert.equal(Timing.localTime(result.leaveTime), "23:45")
   assert.equal(Timing.localTime(result.getReadyTime), "23:25")
@@ -98,8 +127,8 @@ test("next action changes at get-ready and leave boundaries", () => {
   const dep = departure(event)
   const times = Timing.derive(dep)
   assert.match(Timing.nextAction(dep, times.getReadyTime - 60000), /^GET READY IN /)
-  assert.match(Timing.nextAction(dep, times.getReadyTime), /^LEAVE FOR DINNER IN /)
-  assert.equal(Timing.nextAction(dep, times.leaveTime), "LEAVE NOW FOR DINNER")
+  assert.match(Timing.nextAction(dep, times.getReadyTime), /^LEAVE FOR MORNING MEETING IN /)
+  assert.equal(Timing.nextAction(dep, times.leaveTime), "LEAVE NOW FOR MORNING MEETING")
   assert.equal(Timing.nextAction(null, times.leaveTime), "NO UPCOMING DEPARTURES")
 })
 

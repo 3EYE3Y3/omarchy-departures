@@ -9,6 +9,10 @@ function finite(value, fallback) {
     var number = Number(value)
     return isFinite(number) ? number : fallback
 }
+
+function isAutomaticTiming(departure) {
+    return String(departure && departure.timingMode || "auto").toLowerCase() !== "manual"
+}
 function roundCoordinate(value) {
     return Math.round(Number(value) * 100000) / 100000
 }
@@ -83,8 +87,9 @@ function adjustmentThreshold(current, increasing) {
 function considerAdjustment(departure, candidateMinutes) {
     var candidate = Math.max(0, Math.round(finite(candidateMinutes, NaN)))
     if (!isFinite(candidate)) return { accepted: false, reason: "invalid", candidateSamples: 0 }
-    var current = isFinite(Number(departure && departure.routeTravelMinutes))
-        ? Number(departure.routeTravelMinutes) : Number(departure && departure.travelMinutes)
+    var current = isFinite(Number(departure && departure.autoTravelMinutes))
+        ? Number(departure.autoTravelMinutes) : Number(departure && departure.routeTravelMinutes)
+    if (!isFinite(current)) current = Number(departure && departure.travelMinutes)
     if (!isFinite(current)) current = candidate
     var delta = candidate - current
     if (delta === 0) return { accepted: false, reason: "unchanged", candidateSamples: 0 }
@@ -99,6 +104,8 @@ function considerAdjustment(departure, candidateMinutes) {
 function applyResult(departure, normalized, now) {
     var copy = {}
     for (var key in departure) copy[key] = departure[key]
+    if (!isAutomaticTiming(copy))
+        return { departure: copy, adjusted: false, ignored: true, decision: { accepted: false, reason: "manual-mode", candidateSamples: 0 } }
     if (!normalized || !normalized.ok) {
         copy.routeStatus = "fallback"
         copy.routeError = normalized && normalized.error ? String(normalized.error.message || "Route unavailable") : "Route unavailable"
@@ -106,6 +113,7 @@ function applyResult(departure, normalized, now) {
         return { departure: copy, adjusted: false }
     }
     var value = normalized.value || {}
+    var previousAutomatic = isFinite(Number(copy.autoTravelMinutes)) ? Number(copy.autoTravelMinutes) : Number(copy.travelMinutes || 0)
     var decision = considerAdjustment(copy, value.travelMinutes)
     copy.routeObservedMinutes = Number(value.travelMinutes)
     copy.routeTypicalMinutes = value.typicalMinutes === null ? null : Number(value.typicalMinutes)
@@ -117,10 +125,13 @@ function applyResult(departure, normalized, now) {
     copy.routeStatus = "live"
     copy.routeError = ""
     if (decision.accepted) {
-        copy.routeTravelMinutes = Number(value.travelMinutes)
+        copy.autoTravelMinutes = Number(value.travelMinutes)
         copy.routeCandidateMinutes = null
         copy.routeCandidateSamples = 0
-        copy.routeAdjustmentMinutes = Number(copy.routeTravelMinutes) - Number(copy.travelMinutes || 0)
+        var preservedManual = copy.manualTravelMinutes === null || copy.manualTravelMinutes === undefined
+            ? NaN : Number(copy.manualTravelMinutes)
+        var baseline = isFinite(preservedManual) ? preservedManual : previousAutomatic
+        copy.routeAdjustmentMinutes = Number(copy.autoTravelMinutes) - baseline
         copy.routeReason = decision.reason
     } else if (decision.reason === "awaiting-confirmation") {
         copy.routeCandidateMinutes = Number(value.travelMinutes)

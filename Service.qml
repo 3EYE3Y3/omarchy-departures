@@ -117,7 +117,9 @@ Item {
             origin: originPlace ? originPlace.name : (useCurrent ? "Current location" : ""),
             originPlaceId: originPlace ? originPlace.id : (useCurrent ? "__current__" : ""),
             destinationPlaceId: place ? place.id : "",
-            travelMinutes: place && place.samples ? placeDefaults.travelMinutes : settings.defaultTravelMinutes,
+            timingMode: "auto",
+            manualTravelMinutes: place && place.samples ? placeDefaults.travelMinutes : settings.defaultTravelMinutes,
+            autoTravelMinutes: place && place.samples ? placeDefaults.travelMinutes : settings.defaultTravelMinutes,
             arrivalBufferMinutes: place && place.samples ? placeDefaults.arrivalBufferMinutes : settings.defaultArrivalBufferMinutes,
             preparationMinutes: place && place.samples ? placeDefaults.preparationMinutes : settings.defaultPreparationMinutes,
             parkingMinutes: placeDefaults.parkingMinutes || 0,
@@ -161,6 +163,7 @@ Item {
         if (!result.ok) return result
         learnFrom(result.value, now)
         departures = Domain.upsert(departures, result.value)
+        if (result.value.timingMode === "manual") discardQueuedNetworkFor(result.value.id)
         sentNotifications = NotificationState.prune(sentNotifications, departures)
         refresh(now)
         requestSave()
@@ -181,7 +184,9 @@ Item {
             originPlaceId: defaults.originPlaceId,
             destinationPlaceId: defaults.destinationPlaceId,
             arrivalTime: basic.arrivalTime,
-            travelMinutes: defaults.travelMinutes,
+            timingMode: "auto",
+            manualTravelMinutes: null,
+            autoTravelMinutes: defaults.autoTravelMinutes,
             arrivalBufferMinutes: defaults.arrivalBufferMinutes,
             preparationMinutes: defaults.preparationMinutes,
             parkingMinutes: defaults.parkingMinutes,
@@ -198,7 +203,7 @@ Item {
         if (saved.ok) saved.inferred = {
             rememberedPlace: defaults.rememberedPlace,
             learnedKit: defaults.learnedKit,
-            travelMinutes: defaults.travelMinutes
+            travelMinutes: defaults.autoTravelMinutes
         }
         return saved
     }
@@ -400,9 +405,13 @@ Item {
         return true
     }
 
+    function discardQueuedNetworkFor(id) {
+        networkQueue = networkQueue.filter(function(job) { return String(job.departureId || "") !== String(id) })
+    }
+
     function prepareNetworkFor(id, immediate) {
         var departure = recordById(id)
-        if (!departure || !settings.networkEnabled) return
+        if (!departure || !Routing.isAutomaticTiming(departure) || !settings.networkEnabled) return
         var origin = resolvedCoordinates(departure, "origin")
         var destination = resolvedCoordinates(departure, "destination")
         if (!destination && departure.destination)
@@ -424,7 +433,7 @@ Item {
         var source = upcoming.slice(0, 3)
         for (var i = 0; i < source.length; i++) {
             var departure = recordById(source[i].id)
-            if (!departure) continue
+            if (!departure || !Routing.isAutomaticTiming(departure)) continue
             var times = Timing.derive(departure)
             var interval = Routing.refreshInterval(times.leaveTime - now)
             if (!isFinite(interval)) continue
@@ -504,7 +513,7 @@ Item {
 
     function finishGeocode(job, result) {
         var departure = recordById(job.departureId)
-        if (!departure) return
+        if (!departure || !Routing.isAutomaticTiming(departure)) return
         if (!result.ok) {
             providerMessage = result.error.message + "; using remembered/manual timing"
             return
@@ -530,7 +539,7 @@ Item {
 
     function finishRoute(job, result) {
         var departure = recordById(job.departureId)
-        if (!departure) return
+        if (!departure || !Routing.isAutomaticTiming(departure)) return
         var now = Date.now()
         if (result.ok) {
             var untilLeave = Timing.derive(departure).leaveTime - now
@@ -555,7 +564,7 @@ Item {
 
     function applyRouteResult(id, result, now, cached) {
         var departure = recordById(id)
-        if (!departure) return
+        if (!departure || !Routing.isAutomaticTiming(departure)) return
         var applied = Routing.applyResult(departure, result, now)
         applied.departure.routeStatus = result.ok ? (cached ? "cached" : "live") : "fallback"
         departures = Domain.upsert(departures, applied.departure)
@@ -565,7 +574,7 @@ Item {
 
     function stateObject() {
         return {
-            schemaVersion: 2,
+            schemaVersion: 3,
             departures: departures,
             places: places,
             kits: kits,
@@ -610,13 +619,11 @@ Item {
                     if (record) restored.push(record)
                 }
                 if (data.sentNotifications && typeof data.sentNotifications === "object") notifications = data.sentNotifications
-                if (!migrated) {
-                    var sourcePlaces = Array.isArray(data.places) ? data.places : []
-                    for (var p = 0; p < sourcePlaces.length; p++) restoredPlaces = Places.upsert(restoredPlaces, sourcePlaces[p])
-                    restoredKits = Array.isArray(data.kits) ? data.kits : []
-                    restoredCache = data.routeCache && typeof data.routeCache === "object" ? data.routeCache : {}
-                    restoredSettings = normalizedSettings(data.settings)
-                }
+                var sourcePlaces = Array.isArray(data.places) ? data.places : []
+                for (var p = 0; p < sourcePlaces.length; p++) restoredPlaces = Places.upsert(restoredPlaces, sourcePlaces[p])
+                restoredKits = Array.isArray(data.kits) ? data.kits : []
+                restoredCache = data.routeCache && typeof data.routeCache === "object" ? data.routeCache : {}
+                restoredSettings = normalizedSettings(data.settings)
             }
         } catch (error) {
             lastError = "State file could not be read; keeping it untouched"

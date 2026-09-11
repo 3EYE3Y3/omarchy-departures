@@ -31,9 +31,20 @@ function cleanCoordinates(value) {
 }
 
 function duration(value) {
+    if (value === null || value === undefined || value === "") return NaN
     var number = Number(value)
     if (!isFinite(number)) return NaN
     return Math.round(number)
+}
+
+function timingMode(value) {
+    return String(value || "auto").toLowerCase() === "manual" ? "manual" : "auto"
+}
+
+function durationFallback(primary, secondary, fallback) {
+    var value = duration(primary)
+    if (!isFinite(value)) value = duration(secondary)
+    return isFinite(value) ? value : fallback
 }
 
 function validate(input, now, requireFuture) {
@@ -41,8 +52,12 @@ function validate(input, now, requireFuture) {
     var title = cleanText(input && input.title, 80)
     var destination = cleanText(input && input.destination, 120)
     var arrivalTime = Number(input && input.arrivalTime)
+    var mode = timingMode(input && input.timingMode)
+    var manualTravel = durationFallback(input && input.manualTravelMinutes, input && input.travelMinutes, NaN)
+    var autoTravel = durationFallback(input && input.autoTravelMinutes,
+        input && input.routeTravelMinutes !== undefined ? input.routeTravelMinutes : input && input.travelMinutes, NaN)
     var fields = [
-        ["Travel time", duration(input && input.travelMinutes)],
+        [mode === "manual" ? "Manual travel time" : "Automatic travel fallback", mode === "manual" ? manualTravel : autoTravel],
         ["Arrival buffer", duration(input && input.arrivalBufferMinutes)],
         ["Preparation time", duration(input && input.preparationMinutes)],
         ["Parking time", duration(input && input.parkingMinutes || 0)],
@@ -60,6 +75,10 @@ function validate(input, now, requireFuture) {
 }
 
 function normalized(input) {
+    var mode = timingMode(input.timingMode)
+    var manualTravel = durationFallback(input.manualTravelMinutes, input.travelMinutes, NaN)
+    var autoTravel = durationFallback(input.autoTravelMinutes,
+        input.routeTravelMinutes !== undefined ? input.routeTravelMinutes : input.travelMinutes, manualTravel)
     var record = {
         title: cleanText(input.title, 80),
         destination: cleanText(input.destination, 120),
@@ -69,7 +88,9 @@ function normalized(input) {
         originCoordinates: cleanCoordinates(input.originCoordinates),
         destinationCoordinates: cleanCoordinates(input.destinationCoordinates),
         arrivalTime: Number(input.arrivalTime),
-        travelMinutes: duration(input.travelMinutes),
+        timingMode: mode,
+        manualTravelMinutes: isFinite(manualTravel) ? manualTravel : null,
+        autoTravelMinutes: autoTravel,
         arrivalBufferMinutes: duration(input.arrivalBufferMinutes),
         preparationMinutes: duration(input.preparationMinutes),
         parkingMinutes: duration(input.parkingMinutes || 0),
@@ -82,7 +103,7 @@ function normalized(input) {
         rememberKit: input.rememberKit !== false,
         notes: cleanText(input.notes, 500)
     }
-    var routeFields = ["routeTravelMinutes", "routeObservedMinutes", "routeTypicalMinutes", "trafficDelayMinutes",
+    var routeFields = ["routeObservedMinutes", "routeTypicalMinutes", "trafficDelayMinutes",
         "routeDistanceMeters", "routeCheckedAt", "routeAdjustmentMinutes", "routeCandidateMinutes", "routeCandidateSamples"]
     for (var i = 0; i < routeFields.length; i++) {
         var value = Number(input[routeFields[i]])
@@ -121,8 +142,7 @@ function edit(existing, input, now) {
 
 function sameSchedule(existing, input) {
     if (!existing) return false
-    var fields = ["arrivalTime", "travelMinutes", "arrivalBufferMinutes", "preparationMinutes", "parkingMinutes", "walkingMinutes",
-        "origin", "destination", "transportMode"]
+    var fields = ["origin", "destination", "transportMode"]
     for (var i = 0; i < fields.length; i++) if (String(existing[fields[i]] || "") !== String(input[fields[i]] || "")) return false
     return true
 }
@@ -131,7 +151,7 @@ function preserveRoute(existing, input) {
     var result = {}
     for (var key in input) result[key] = input[key]
     if (!sameSchedule(existing, input)) return result
-    var routeFields = ["originCoordinates", "destinationCoordinates", "routeTravelMinutes", "routeObservedMinutes", "routeTypicalMinutes",
+    var routeFields = ["originCoordinates", "destinationCoordinates", "routeObservedMinutes", "routeTypicalMinutes",
         "trafficDelayMinutes", "routeDistanceMeters", "routeCheckedAt", "routeAdjustmentMinutes", "routeCandidateMinutes",
         "routeCandidateSamples", "routeProvider", "routeStatus", "routeError", "routeReason", "routeTrafficAware"]
     for (var i = 0; i < routeFields.length; i++) if (result[routeFields[i]] === undefined) result[routeFields[i]] = existing[routeFields[i]]
