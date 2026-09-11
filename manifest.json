@@ -7,7 +7,6 @@
   "license": "MIT",
   "description": "Know when to get ready and when to leave.",
   "kinds": ["service", "bar-widget"],
-  "keepLoaded": true,
   "entryPoints": {
     "service": "Service.qml",
     "barWidget": "BarWidget.qml"

@@ -2,7 +2,7 @@
 
 Departures follows Omarchy 4.0.3's public third-party plugin contract.
 
-- `Service.qml` is the long-lived owner of records, live time, persistence, and notifications.
+- `Service.qml` is the long-lived owner of records, live time, persistence, and notifications. It is mounted whenever the plugin is enabled and reconstructs from durable state on a shell/plugin reload.
 - `BarWidget.qml` reads the plugin's own service through the capability-scoped shell facade and owns the panel loader.
 - `Panel.qml` and `DepartureEditor.qml` contain presentation and user interaction only.
 - `js/timing.js` is the deterministic timing and next-action engine.
