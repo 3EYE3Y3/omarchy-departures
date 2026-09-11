@@ -59,6 +59,12 @@ BarWidget {
         function show(): void { root.open() }
         function hide(): void { root.close() }
         function toggle(): void { root.toggle() }
+        function compose(): void {
+            root.open()
+            Qt.callLater(function() {
+                if (panelLoader.item) panelLoader.item.beginCreate()
+            })
+        }
         function state(): string {
             return root.departuresService ? JSON.stringify(root.departuresService.stateObject()) : "{}"
         }

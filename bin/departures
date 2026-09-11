@@ -5,6 +5,7 @@ usage() {
   cat >&2 <<'USAGE'
 Usage:
   departures open
+  departures new
   departures state
   departures snapshot
   departures add '<json>'
@@ -18,6 +19,9 @@ action="${1:-}"
 case "$action" in
 open)
   exec omarchy-shell shell summon io.github.3eye3y3.departures '{}'
+  ;;
+new)
+  exec omarchy-shell io.github.3eye3y3.departures compose
   ;;
 state | snapshot)
   exec omarchy-shell io.github.3eye3y3.departures "$action"

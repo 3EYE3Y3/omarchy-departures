@@ -19,6 +19,11 @@ Item {
     signal saveRequested(var draft)
     signal cancelRequested()
 
+    Shortcut {
+        sequence: "Ctrl+Return"
+        onActivated: editor.submit()
+    }
+
     implicitHeight: form.implicitHeight
 
     function defaultArrival() {
