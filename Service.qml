@@ -250,6 +250,12 @@ Item {
     function removePlace(value) {
         var existing = Places.find(places, value)
         if (!existing) return false
+        if (existing.coordinates) {
+            var retainedCache = {}
+            for (var key in routeCache)
+                if (!Routing.cacheReferences(key, existing.coordinates)) retainedCache[key] = routeCache[key]
+            routeCache = retainedCache
+        }
         places = Places.remove(places, value)
         if (settings.defaultOriginPlaceId === existing.id) {
             var copy = normalizedSettings(settings)

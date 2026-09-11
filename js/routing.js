@@ -20,6 +20,15 @@ function cacheKey(origin, destination, mode, provider) {
         roundCoordinate(destination.latitude), roundCoordinate(destination.longitude)].join(":")
 }
 
+function cacheReferences(key, point) {
+    if (!key || !point) return false
+    var parts = String(key).split(":")
+    var latitude = String(roundCoordinate(point.latitude))
+    var longitude = String(roundCoordinate(point.longitude))
+    return (parts[2] === latitude && parts[3] === longitude)
+        || (parts[4] === latitude && parts[5] === longitude)
+}
+
 function refreshInterval(untilLeaveMs) {
     var remaining = finite(untilLeaveMs, Infinity)
     if (remaining <= 0) return Infinity
