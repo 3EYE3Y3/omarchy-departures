@@ -59,6 +59,32 @@ BarWidget {
         function show(): void { root.open() }
         function hide(): void { root.close() }
         function toggle(): void { root.toggle() }
+        function state(): string {
+            return root.departuresService ? JSON.stringify(root.departuresService.stateObject()) : "{}"
+        }
+        function snapshot(): string {
+            return root.departuresService ? JSON.stringify(root.departuresService.snapshot) : "{}"
+        }
+        function add(payloadJson: string): string {
+            if (!root.departuresService) return JSON.stringify({ ok: false, errors: ["Departures service is unavailable"] })
+            try {
+                return root.departuresService.resultJson(root.departuresService.saveDeparture(JSON.parse(payloadJson || "{}"), ""))
+            } catch (error) {
+                return root.departuresService.resultJson({ ok: false, errors: ["Payload must be valid JSON"] })
+            }
+        }
+        function update(payloadJson: string): string {
+            if (!root.departuresService) return JSON.stringify({ ok: false, errors: ["Departures service is unavailable"] })
+            try {
+                var payload = JSON.parse(payloadJson || "{}")
+                return root.departuresService.resultJson(root.departuresService.saveDeparture(payload, String(payload.id || "")))
+            } catch (error) {
+                return root.departuresService.resultJson({ ok: false, errors: ["Payload must be valid JSON"] })
+            }
+        }
+        function remove(id: string): string {
+            return JSON.stringify({ ok: root.departuresService ? root.departuresService.deleteDeparture(id) : false })
+        }
     }
 
     WidgetButton {
