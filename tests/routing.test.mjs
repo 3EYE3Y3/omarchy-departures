@@ -8,6 +8,8 @@ test("cache keys are stable at five coordinate decimals", () => {
   const first = Routing.cacheKey({ latitude: 10.000001, longitude: 20.000001 }, { latitude: 10.5, longitude: 20.5 }, "drive", "osrm")
   const second = Routing.cacheKey({ latitude: 10.000002, longitude: 20.000002 }, { latitude: 10.5, longitude: 20.5 }, "drive", "osrm")
   assert.equal(first, second)
+  assert.equal(Routing.cacheReferences(first, { latitude: 10, longitude: 20 }), true)
+  assert.equal(Routing.cacheReferences(first, { latitude: 0, longitude: 0 }), false)
 })
 test("route cache serves fresh and bounded stale entries", () => {
   const now = Date.now()
