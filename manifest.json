@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "io.github.3eye3y3.departures",
   "name": "Departures",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "3EYE3Y3",
   "license": "MIT",
-  "description": "Know when to get ready and when to leave.",
+  "description": "Autonomous arrival-first planning: know when to get ready and leave.",
   "kinds": ["service", "bar-widget"],
   "entryPoints": {
     "service": "Service.qml",

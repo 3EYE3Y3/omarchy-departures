@@ -8,9 +8,22 @@ Usage:
   departures new
   departures state
   departures snapshot
+  departures capabilities
+  departures add "Dentist tomorrow at 2pm at Example Clinic"
   departures add '<json>'
   departures update '<json-with-id>'
   departures remove <id>
+  departures places
+  departures place set '<json>'
+  departures place remove <name-or-id>
+  departures kits
+  departures kit set '<json>'
+  departures kit remove <key>
+  departures config network <on|off>
+  departures config origin <saved-place>
+  departures config set '<json>'
+  departures location <latitude,longitude> [label]
+  departures reset-learning
 USAGE
   exit 2
 }
@@ -23,12 +36,62 @@ open)
 new)
   exec omarchy-shell io.github.3eye3y3.departures compose
   ;;
-state | snapshot)
+state | snapshot | capabilities | places | kits)
   exec omarchy-shell io.github.3eye3y3.departures "$action"
   ;;
-add | update | remove)
+add)
+  [[ $# -eq 2 ]] || usage
+  if [[ "$2" == \{* ]]; then
+    exec omarchy-shell io.github.3eye3y3.departures add "$2"
+  else
+    exec omarchy-shell io.github.3eye3y3.departures natural "$2"
+  fi
+  ;;
+update | remove)
   [[ $# -eq 2 ]] || usage
   exec omarchy-shell io.github.3eye3y3.departures "$action" "$2"
+  ;;
+place)
+  [[ $# -eq 3 ]] || usage
+  case "$2" in
+  set) exec omarchy-shell io.github.3eye3y3.departures setPlace "$3" ;;
+  remove) exec omarchy-shell io.github.3eye3y3.departures removePlace "$3" ;;
+  *) usage ;;
+  esac
+  ;;
+kit)
+  [[ $# -eq 3 ]] || usage
+  case "$2" in
+  set) exec omarchy-shell io.github.3eye3y3.departures setKit "$3" ;;
+  remove) exec omarchy-shell io.github.3eye3y3.departures removeKit "$3" ;;
+  *) usage ;;
+  esac
+  ;;
+config)
+  [[ $# -eq 3 ]] || usage
+  case "$2" in
+  network)
+    case "$3" in
+    on) exec omarchy-shell io.github.3eye3y3.departures configure '{"networkEnabled":true}' ;;
+    off) exec omarchy-shell io.github.3eye3y3.departures configure '{"networkEnabled":false}' ;;
+    *) usage ;;
+    esac
+    ;;
+  origin)
+    origin_json="$(node -p 'JSON.stringify(process.argv[1])' "$3")"
+    exec omarchy-shell io.github.3eye3y3.departures configure "{\"defaultOrigin\":$origin_json}"
+    ;;
+  set) exec omarchy-shell io.github.3eye3y3.departures configure "$3" ;;
+  *) usage ;;
+  esac
+  ;;
+location)
+  [[ $# -ge 2 && $# -le 3 ]] || usage
+  exec omarchy-shell io.github.3eye3y3.departures location "$2" "${3:-Current location}"
+  ;;
+reset-learning)
+  [[ $# -eq 1 ]] || usage
+  exec omarchy-shell io.github.3eye3y3.departures resetLearning
   ;;
 *)
   usage

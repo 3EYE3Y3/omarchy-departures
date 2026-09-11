@@ -1,0 +1,138 @@
+.pragma library
+
+var MINUTE_MS = 60000
+var HOUR_MS = 3600000
+var DAY_MS = 86400000
+var STALE_CACHE_MS = 7 * DAY_MS
+
+function finite(value, fallback) {
+    var number = Number(value)
+    return isFinite(number) ? number : fallback
+}
+function roundCoordinate(value) {
+    return Math.round(Number(value) * 100000) / 100000
+}
+
+function cacheKey(origin, destination, mode, provider) {
+    if (!origin || !destination) return ""
+    return [provider || "cached", mode || "drive",
+        roundCoordinate(origin.latitude), roundCoordinate(origin.longitude),
+        roundCoordinate(destination.latitude), roundCoordinate(destination.longitude)].join(":")
+}
+
+function refreshInterval(untilLeaveMs) {
+    var remaining = finite(untilLeaveMs, Infinity)
+    if (remaining <= 0) return Infinity
+    if (remaining > 7 * DAY_MS) return Infinity
+    if (remaining > DAY_MS) return 6 * HOUR_MS
+    if (remaining > 6 * HOUR_MS) return 3 * HOUR_MS
+    if (remaining > 2 * HOUR_MS) return HOUR_MS
+    if (remaining > 30 * MINUTE_MS) return 15 * MINUTE_MS
+    if (remaining > 10 * MINUTE_MS) return 5 * MINUTE_MS
+    return 2 * MINUTE_MS
+}
+
+function cacheEntry(result, now, ttlMs) {
+    if (!result || !result.ok) return null
+    return {
+        provider: String(result.provider || "unknown"),
+        value: result.value,
+        fetchedAt: Number(now),
+        expiresAt: Number(now) + Math.max(MINUTE_MS, finite(ttlMs, 15 * MINUTE_MS))
+    }
+}
+
+function cached(cache, key, now, allowStale) {
+    var entry = cache && key ? cache[key] : null
+    if (!entry || !entry.value || !isFinite(Number(entry.fetchedAt))) return null
+    var stale = Number(now) > Number(entry.expiresAt || 0)
+    if (stale && (!allowStale || Number(now) - Number(entry.fetchedAt) > STALE_CACHE_MS)) return null
+    var copy = {}
+    for (var field in entry) copy[field] = entry[field]
+    copy.stale = stale
+    return copy
+}
+
+function put(cache, key, entry, maxEntries) {
+    var result = {}
+    var source = cache || {}
+    for (var existing in source) result[existing] = source[existing]
+    if (key && entry) result[key] = entry
+    var keys = Object.keys(result).sort(function(a, b) {
+        return Number(result[b].fetchedAt || 0) - Number(result[a].fetchedAt || 0)
+    })
+    var limit = Math.max(10, Number(maxEntries) || 100)
+    for (var i = limit; i < keys.length; i++) delete result[keys[i]]
+    return result
+}
+
+function adjustmentThreshold(current, increasing) {
+    var proportional = Math.ceil(Math.max(0, Number(current) || 0) * 0.10)
+    return Math.max(increasing ? 3 : 5, proportional)
+}
+
+function considerAdjustment(departure, candidateMinutes) {
+    var candidate = Math.max(0, Math.round(finite(candidateMinutes, NaN)))
+    if (!isFinite(candidate)) return { accepted: false, reason: "invalid", candidateSamples: 0 }
+    var current = isFinite(Number(departure && departure.routeTravelMinutes))
+        ? Number(departure.routeTravelMinutes) : Number(departure && departure.travelMinutes)
+    if (!isFinite(current)) current = candidate
+    var delta = candidate - current
+    if (delta === 0) return { accepted: false, reason: "unchanged", candidateSamples: 0 }
+    var threshold = adjustmentThreshold(current, delta > 0)
+    if (Math.abs(delta) < threshold) return { accepted: false, reason: "below-threshold", candidateSamples: 0 }
+    if (delta > 0) return { accepted: true, reason: "material-increase", candidateSamples: 0 }
+    var previous = Number(departure && departure.routeCandidateMinutes)
+    var samples = Math.abs(previous - candidate) <= 2 ? Number(departure.routeCandidateSamples || 0) + 1 : 1
+    return { accepted: samples >= 2, reason: samples >= 2 ? "confirmed-decrease" : "awaiting-confirmation", candidateSamples: samples }
+}
+
+function applyResult(departure, normalized, now) {
+    var copy = {}
+    for (var key in departure) copy[key] = departure[key]
+    if (!normalized || !normalized.ok) {
+        copy.routeStatus = "fallback"
+        copy.routeError = normalized && normalized.error ? String(normalized.error.message || "Route unavailable") : "Route unavailable"
+        copy.routeCheckedAt = Number(now)
+        return { departure: copy, adjusted: false }
+    }
+    var value = normalized.value || {}
+    var decision = considerAdjustment(copy, value.travelMinutes)
+    copy.routeObservedMinutes = Number(value.travelMinutes)
+    copy.routeTypicalMinutes = value.typicalMinutes === null ? null : Number(value.typicalMinutes)
+    copy.trafficDelayMinutes = Number(value.trafficDelayMinutes || 0)
+    copy.routeDistanceMeters = Number(value.distanceMeters || 0)
+    copy.routeProvider = String(normalized.provider || "")
+    copy.routeTrafficAware = value.trafficAware === true
+    copy.routeCheckedAt = Number(now)
+    copy.routeStatus = "live"
+    copy.routeError = ""
+    if (decision.accepted) {
+        copy.routeTravelMinutes = Number(value.travelMinutes)
+        copy.routeCandidateMinutes = null
+        copy.routeCandidateSamples = 0
+        copy.routeAdjustmentMinutes = Number(copy.routeTravelMinutes) - Number(copy.travelMinutes || 0)
+        copy.routeReason = decision.reason
+    } else if (decision.reason === "awaiting-confirmation") {
+        copy.routeCandidateMinutes = Number(value.travelMinutes)
+        copy.routeCandidateSamples = decision.candidateSamples
+    } else {
+        copy.routeCandidateMinutes = null
+        copy.routeCandidateSamples = 0
+    }
+    return { departure: copy, adjusted: decision.accepted, decision: decision }
+}
+
+function navigationUrl(departure) {
+    if (!departure) return ""
+    var origin = String(departure.origin || "")
+    var destination = String(departure.destination || "")
+    if (!destination) return ""
+    function parameter(value) { return encodeURIComponent(value) }
+    var mode = String(departure.transportMode || "drive")
+    var travelMode = mode === "walk" ? "walking" : (mode === "cycle" ? "bicycling" : (mode === "transit" ? "transit" : "driving"))
+    var url = "https://www.google.com/maps/dir/?api=1&destination=" + parameter(destination)
+    if (origin && origin.toLowerCase() !== "current location") url += "&origin=" + parameter(origin)
+    url += "&travelmode=" + travelMode
+    return url
+}

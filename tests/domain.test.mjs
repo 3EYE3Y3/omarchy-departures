@@ -56,3 +56,15 @@ test("restores expired records without treating them as invalid", () => {
   record.arrivalTime = now - 86400000
   assert.equal(Domain.restore(record).id, "dep-1")
 })
+
+test("restores a v0.1 record with zero-valued v0.2 logistics defaults", () => {
+  const legacy = Domain.create(input, now, "legacy").value
+  delete legacy.parkingMinutes
+  delete legacy.walkingMinutes
+  delete legacy.origin
+  const restored = Domain.restore(legacy)
+  assert.equal(restored.id, "legacy")
+  assert.equal(restored.parkingMinutes, 0)
+  assert.equal(restored.walkingMinutes, 0)
+  assert.equal(restored.origin, "")
+})

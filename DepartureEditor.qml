@@ -11,8 +11,10 @@ Item {
     id: editor
 
     property var editingDeparture: null
+    property var departuresService: null
     property var reminderItems: []
     property string errorText: ""
+    property string infoText: ""
     property bool loading: false
     readonly property bool editing: editingDeparture !== null
     readonly property var derived: Timing.derive(draft())
@@ -32,21 +34,40 @@ Item {
         loading = true
         editingDeparture = departure || null
         errorText = ""
+        infoText = ""
         var arrival = departure ? Number(departure.arrivalTime) : defaultArrival()
+        var defaults = !departure && departuresService ? departuresService.defaultsFor("", "") : null
         titleField.text = departure ? String(departure.title || "") : ""
         destinationField.text = departure ? String(departure.destination || "") : ""
+        originField.text = departure ? String(departure.origin || "") : (defaults ? String(defaults.origin || "") : "")
         dateField.text = Timing.localDate(arrival)
         timeField.text = Timing.localTime(arrival)
-        travelField.value = departure ? Number(departure.travelMinutes) : 20
-        bufferField.value = departure ? Number(departure.arrivalBufferMinutes) : 5
-        preparationField.value = departure ? Number(departure.preparationMinutes) : 15
+        travelField.value = departure ? Number(departure.travelMinutes) : (defaults ? defaults.travelMinutes : 20)
+        bufferField.value = departure ? Number(departure.arrivalBufferMinutes) : (defaults ? defaults.arrivalBufferMinutes : 5)
+        preparationField.value = departure ? Number(departure.preparationMinutes) : (defaults ? defaults.preparationMinutes : 15)
+        parkingField.value = departure ? Number(departure.parkingMinutes || 0) : 0
+        walkingField.value = departure ? Number(departure.walkingMinutes || 0) : 0
         transportField.value = departure ? String(departure.transportMode || "drive") : "drive"
         profileField.value = departure ? String(departure.profile || "custom") : "custom"
         reminderItems = departure && Array.isArray(departure.reminders) ? departure.reminders.slice() : []
+        rememberKit.checked = departure ? departure.rememberKit !== false : true
         notesField.text = departure ? String(departure.notes || "") : ""
         reminderField.text = ""
         loading = false
         Qt.callLater(function() { titleField.forceActiveFocus() })
+    }
+
+    function useSuggestions() {
+        if (!departuresService) return
+        var values = departuresService.defaultsFor(titleField.text, destinationField.text)
+        if (values.origin && !originField.text) originField.text = values.origin
+        travelField.value = values.travelMinutes
+        bufferField.value = values.arrivalBufferMinutes
+        preparationField.value = values.preparationMinutes
+        parkingField.value = values.parkingMinutes
+        walkingField.value = values.walkingMinutes
+        reminderItems = values.reminders.slice()
+        infoText = values.rememberedPlace ? "Remembered place defaults applied" : "Activity kit and local defaults applied"
     }
 
     function applyProfile(name) {
@@ -81,13 +102,19 @@ Item {
         return {
             title: titleField ? titleField.text : "",
             destination: destinationField ? destinationField.text : "",
+            origin: originField ? originField.text : "",
             arrivalTime: dateField && timeField ? Timing.localDateTime(dateField.text, timeField.text) : NaN,
             travelMinutes: travelField ? travelField.value : 0,
             arrivalBufferMinutes: bufferField ? bufferField.value : 0,
             preparationMinutes: preparationField ? preparationField.value : 0,
+            parkingMinutes: parkingField ? parkingField.value : 0,
+            walkingMinutes: walkingField ? walkingField.value : 0,
             transportMode: transportField ? transportField.value : "drive",
             profile: profileField ? profileField.value : "custom",
             reminders: reminderItems,
+            readyItems: editingDeparture && Array.isArray(editingDeparture.readyItems) ? editingDeparture.readyItems : [],
+            kitKey: profileField && profileField.value !== "custom" ? profileField.value : titleField.text,
+            rememberKit: rememberKit.checked,
             notes: notesField ? notesField.text : ""
         }
     }
@@ -136,6 +163,9 @@ Item {
             Text { text: "DESTINATION"; color: Color.foreground; opacity: 0.58; font.family: Style.font.family; font.pixelSize: Style.font.caption }
             TextField { id: destinationField; Layout.fillWidth: true; placeholderText: "Example City"; maximumLength: 120; onAccepted: dateField.forceActiveFocus() }
 
+            Text { text: "ORIGIN  OPTIONAL"; color: Color.foreground; opacity: 0.58; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+            TextField { id: originField; Layout.fillWidth: true; placeholderText: "Home, Work, or Current location"; maximumLength: 120 }
+
             Text { text: "ARRIVAL"; color: Color.foreground; opacity: 0.58; font.family: Style.font.family; font.pixelSize: Style.font.caption }
             RowLayout {
                 Layout.fillWidth: true
@@ -155,8 +185,16 @@ Item {
         RowLayout {
             Layout.fillWidth: true
             spacing: Style.space(12)
+            NumberField { id: parkingField; label: "PARKING  MIN"; from: 0; to: 2880; Layout.fillWidth: true; fieldWidth: parent ? (parent.width - Style.space(12)) / 2 : Style.space(220); onModified: function(next) { value = next } }
+            NumberField { id: walkingField; label: "WALKING  MIN"; from: 0; to: 2880; Layout.fillWidth: true; fieldWidth: parent ? (parent.width - Style.space(12)) / 2 : Style.space(220); onModified: function(next) { value = next } }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Style.space(12)
             Dropdown { id: transportField; label: "TRANSPORT"; options: Profiles.transportOptions(); Layout.fillWidth: true }
             Dropdown { id: profileField; label: "PROFILE"; options: Profiles.options(); Layout.fillWidth: true; onChanged: function(value) { editor.applyProfile(value) } }
+            Button { text: "USE REMEMBERED"; fontSize: Style.font.caption; focusable: true; onClicked: editor.useSuggestions() }
         }
 
         Rectangle {
@@ -215,6 +253,14 @@ Item {
             }
         }
 
+        QQC.CheckBox {
+            id: rememberKit
+            text: "Remember these items for this activity"
+            palette.windowText: Color.foreground
+            font.family: Style.font.family
+            font.pixelSize: Style.font.bodySmall
+        }
+
         Text { text: "NOTES  OPTIONAL"; color: Color.foreground; opacity: 0.58; font.family: Style.font.family; font.pixelSize: Style.font.caption }
         QQC.TextArea {
             id: notesField
@@ -232,6 +278,16 @@ Item {
                 border.color: Color.accent
                 radius: Style.cornerRadius
             }
+        }
+
+        Text {
+            visible: editor.infoText !== ""
+            text: editor.infoText
+            color: Color.accent
+            font.family: Style.font.family
+            font.pixelSize: Style.font.bodySmall
+            wrapMode: Text.Wrap
+            Layout.fillWidth: true
         }
 
         Text {

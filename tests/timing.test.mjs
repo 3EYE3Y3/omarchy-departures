@@ -42,6 +42,22 @@ test("supports zero travel duration", () => {
   assert.equal(result.leaveTime, result.targetArrivalTime)
 })
 
+test("arrival-first calculation includes parking and walking before safety arrival", () => {
+  const event = new Date(2026, 8, 11, 18, 30).getTime()
+  const result = Timing.derive(departure(event, { travelMinutes: 30, parkingMinutes: 5, walkingMinutes: 8, arrivalBufferMinutes: 10 }))
+  assert.equal(Timing.localTime(result.targetArrivalTime), "18:20")
+  assert.equal(Timing.localTime(result.routeArrivalTime), "18:07")
+  assert.equal(Timing.localTime(result.leaveTime), "17:37")
+})
+
+test("accepted dynamic route duration is authoritative without changing baseline", () => {
+  const event = new Date(2026, 8, 11, 18, 30).getTime()
+  const dep = departure(event, { travelMinutes: 31, routeTravelMinutes: 43 })
+  const result = Timing.derive(dep)
+  assert.equal(result.effectiveTravelMinutes, 43)
+  assert.equal(dep.travelMinutes, 31)
+})
+
 test("sorts multiple departures and selects the next unexpired one", () => {
   const now = new Date(2026, 8, 11, 12, 0).getTime()
   const later = departure(now + 5 * 3600000, { id: "later" })
