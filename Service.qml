@@ -149,6 +149,43 @@ Item {
         refresh(Date.now())
     }
 
+    function resultJson(result) {
+        return JSON.stringify(result || { ok: false, errors: ["Unknown error"] })
+    }
+
+    IpcHandler {
+        target: "departures"
+
+        function state(): string {
+            return JSON.stringify(service.stateObject())
+        }
+
+        function snapshot(): string {
+            return JSON.stringify(service.snapshot)
+        }
+
+        function add(payloadJson: string): string {
+            try {
+                return service.resultJson(service.saveDeparture(JSON.parse(payloadJson || "{}"), ""))
+            } catch (error) {
+                return service.resultJson({ ok: false, errors: ["Payload must be valid JSON"] })
+            }
+        }
+
+        function update(payloadJson: string): string {
+            try {
+                var payload = JSON.parse(payloadJson || "{}")
+                return service.resultJson(service.saveDeparture(payload, String(payload.id || "")))
+            } catch (error) {
+                return service.resultJson({ ok: false, errors: ["Payload must be valid JSON"] })
+            }
+        }
+
+        function remove(id: string): string {
+            return JSON.stringify({ ok: service.deleteDeparture(id) })
+        }
+    }
+
     FileView {
         id: stateFile
         path: service.statePath

@@ -34,6 +34,18 @@ Click the bar item to open the board. You can also use shell IPC:
 omarchy-shell shell summon io.github.3eye3y3.departures '{}'
 ```
 
+The repository also includes a local automation client that talks to the same
+long-lived service used by the editor:
+
+```bash
+bin/departures state
+bin/departures snapshot
+bin/departures open
+```
+
+`add`, `update`, and `remove` accept JSON or an ID respectively. Timestamps are
+local Unix milliseconds, matching JavaScript's `Date.getTime()`.
+
 ## Data
 
 State lives at:
