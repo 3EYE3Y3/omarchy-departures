@@ -49,6 +49,13 @@ test("schema v3 preserves the absence of a previous manual value", () => {
   assert.equal(decoded.value.departures[0].autoTravelMinutes, 31)
 })
 
+test("schema v3 preserves a missing timing value for recoverable degraded UI", () => {
+  const decoded = Storage.decode(JSON.stringify({ schemaVersion: 3, departures: [{ id: "needs-timing", timingMode: "auto", manualTravelMinutes: null, autoTravelMinutes: null }] }))
+  assert.equal(decoded.ok, true)
+  assert.equal(decoded.value.departures[0].manualTravelMinutes, null)
+  assert.equal(decoded.value.departures[0].autoTravelMinutes, null)
+})
+
 test("invalid JSON and unsupported future schemas do not throw", () => {
   assert.equal(Storage.decode("broken").ok, false)
   assert.equal(Storage.decode('{"schemaVersion":99}').ok, false)

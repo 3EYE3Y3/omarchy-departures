@@ -1,12 +1,12 @@
 # Testing and acceptance
 
-Departures 0.2.x was developed and accepted against Omarchy 4.0.3-1 and Quickshell 0.3.1 on 2026-09-11.
+Departures 0.3.0 was developed and accepted against Omarchy 4.0.3-1 and Quickshell 0.3.1 on 2026-09-11.
 
 ## Automated
 
 `npm test` runs deterministic tests with no live third-party requests. Coverage includes:
 
-- explicit AUTO/MANUAL authority, mode switching, value preservation, arrival-first timing, zero durations, sorting, status, future dates, and midnight
+- explicit AUTO/MANUAL authority, mode switching, value preservation, arrival-first timing, zero durations, missing timing, sorting, status, future dates, and midnight
 - domain validation, CRUD, recalculation, v0.1 record restoration, and notification revision behavior
 - notification deduplication across reload and dynamic route-time changes
 - Nominatim, OSRM, Mapbox, location, and future-weather result normalization
@@ -17,15 +17,31 @@ Departures 0.2.x was developed and accepted against Omarchy 4.0.3-1 and Quickshe
 - built-in/learned bring kits, replacement, and reset
 - local natural-language parsing and missing-field reporting
 - schema-v1/v2-to-v3 state migration with preserved records, learned data, cache, settings, and notification keys
-- Add/editor UI contracts and route-work gating in MANUAL mode
+- first-run, Add/editor, details, long-label, fallback-severity, and human-readable primary-panel UI contracts
+- route-work gating in MANUAL mode and manual provider observations that cannot move timing or notification keys
 - keyless navigation URL generation and absent-credential capability behavior
 - permanent public-data privacy policy checks
 
-The v0.2.1 suite contains 78 tests and runs on Node.js 22.
+The v0.3.0 suite contains 93 tests and runs on Node.js 22.
 
 `scripts/quality` additionally runs the installed Omarchy manifest validator, QML lint, Bash syntax checks, ShellCheck when available, and Git whitespace checks.
 
 The installed Qt `qmllint` cannot statically infer the members of Omarchy's dynamic `Style.font` object, injected bar facade, or `Loader.item`, and Quickshell's metadata does not expose `QProcess::ExitStatus` to the linter. It reports those known `missing-property`/signal-metadata warnings while returning success. Live shell testing produced no Departures runtime warning. ShellCheck was not installed; `bash -n` passed for both scripts.
+
+## v0.3.0 effortless-UX acceptance
+
+- Stopped the shell, moved the user's state into an opaque temporary backup, and verified its checksum before using an empty isolated state. No desktop capture was made.
+- Opened the empty panel and compose entry point. The first-run state and fresh editor loaded without a Departures QML warning; automated contracts verify that both Add actions use the editor rather than empty quick-create.
+- Created fictional Automatic and Fixed time departures. Both appeared immediately in state and the derived snapshot.
+- Confirmed Fixed time remained authoritative through refresh opportunities and Retry was correctly unavailable for that mode.
+- Exercised Automatic → Fixed time, changed the fixed value, then returned to Automatic. The automatic value became authoritative again and the fixed value remained preserved.
+- Confirmed edit and delete behavior, then restarted the shell and verified timing-mode persistence.
+- Used generic sample endpoints for a live valid OSRM route and a provider-rejected route. The valid route reached live state; the failure kept its saved duration, reliable next action, unchanged revision semantics, and working Retry action.
+- Exercised a deliberately degraded fictional record with neither duration. It survived restart, produced no fabricated leave time, used the blocking card, and remained ineligible for timing notifications.
+- Opened the primary card and reached the details path with keyboard navigation; no component warning was emitted. The human UI contract separately verifies that routing diagnostics and recovery controls are absent from the primary card and present in details.
+- Restored the user's original state byte-for-byte at mode `0600`, restarted the final candidate, and confirmed service/snapshot availability without a Departures runtime warning.
+
+The acceptance state used only fictional labels, was never captured, and remained outside the repository. It was removed after restoration.
 
 ## Local acceptance completed
 

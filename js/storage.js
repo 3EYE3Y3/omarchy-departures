@@ -29,7 +29,11 @@ function migrateDeparture(input, schemaVersion) {
     record.manualTravelMinutes = isFinite(manual) ? manual
         : (schemaVersion < 3 && isFinite(legacy) ? legacy : null)
     record.autoTravelMinutes = isFinite(automatic) ? automatic : (isFinite(routed) ? routed : (isFinite(legacy) ? legacy : record.manualTravelMinutes))
-    if (!isFinite(finiteDuration(record.autoTravelMinutes))) record.autoTravelMinutes = 0
+    // v0.1/v0.2 treated travelMinutes as required, so keep their historical zero
+    // fallback. Schema v3 can represent a genuinely missing timing value; preserve
+    // it so the UI can show a recoverable blocking state.
+    if (!isFinite(finiteDuration(record.autoTravelMinutes)))
+        record.autoTravelMinutes = schemaVersion < 3 ? 0 : null
     delete record.travelMinutes
     delete record.routeTravelMinutes
     return record

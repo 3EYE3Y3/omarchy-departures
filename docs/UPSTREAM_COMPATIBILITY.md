@@ -1,6 +1,6 @@
 # Omarchy compatibility
 
-Departures 0.2.1 targets Omarchy 4.0.3's schema version 1 plugin-manifest API and Quickshell 0.3.1.
+Departures 0.3.0 targets Omarchy's schema version 1 plugin-manifest API and Quickshell 0.3.1.
 
 It uses documented `service` and `bar-widget` kinds, the public entry-point property injection contract, the bar's own-service facade, native `KeyboardPanel`/`Panel` conventions, `Qt.resolvedUrl`, and the supported `omarchy-notification-send` mechanism.
 

@@ -2,22 +2,22 @@
 
 > Know when to go.
 
-Departures is an arrival-first departure assistant for Omarchy. Describe an obligation; Departures works backwards through safety margin, parking, walking, travel, and preparation to make the right leave time obvious.
+Departures is an arrival-first assistant for Omarchy. Tell it where you are going and when you need to arrive; it makes the next action and leave time obvious.
 
 ```text
 Dentist tomorrow at 2pm at City Dental Clinic
 ```
 
-The bar stays compact. The panel uses a high-density passenger-information layout, continuously advances through `ON TIME`, `GET READY`, `LEAVE SOON`, `LEAVE NOW`, and `DEPARTED`, and explains material route changes rather than silently moving the time.
+The bar stays compact. The panel leads with destination, arrival, next action, leave time, and travel duration. Routing details stay out of the way unless you ask for them or need to fix something.
 
-## Timing authority
+## Travel time
 
-Every departure has exactly one timing mode:
+Every departure uses exactly one travel-time source:
 
-- **AUTO** (the default) uses accepted live, cached, or remembered routing duration. Provider refreshes can move the leave time under the existing material-change policy.
-- **MANUAL** uses the fixed duration entered by the user. Provider work is suspended for that departure and cannot change its travel, leave, get-ready, or notification timing.
+- **Automatic** (the default) refreshes a route estimate when routing is available and safely keeps the most recent usable duration when it is not.
+- **Fixed time** uses the duration you enter. Route refreshes are paused and cannot move travel, leave, get-ready, or notification timing.
 
-The editor keeps automatic and manual duration values separately, so switching modes is predictable and a previous manual value is restored when switching back.
+Internally these remain mutually exclusive AUTO/MANUAL modes. Their values are stored separately, so switching is predictable and a previous fixed value is restored when switching back.
 
 ## What Departures learns
 
@@ -66,7 +66,7 @@ bin/departures add '{"title":"Morning Meeting","destination":"Central Office","a
 
 ## Routing providers
 
-Departures works with no network, account, key, or provider. AUTO falls back to cached or remembered automatic duration when routing is unavailable. MANUAL always remains fixed.
+Departures works with no network, account, key, or provider. Automatic timing falls back to a saved estimate when routing is unavailable. Fixed time never changes on its own.
 
 Free routing is an explicit privacy opt-in. Enable it in the panel or CLI:
 
@@ -80,13 +80,13 @@ This enables:
 - OSRM/OpenStreetMap no-key driving routes, cached per coordinate pair and mode
 - progressively scheduled refreshes near the next departure
 
-Public community endpoints are best-effort rather than an availability guarantee. Provider failure, timeout, DNS failure, malformed data, and stale results fall back to cached or learned automatic duration without blocking the plugin. Disable external calls at any time:
+Public community endpoints are best-effort rather than an availability guarantee. If routing cannot refresh but a saved duration exists, the primary panel remains usable and quietly says that saved timing is in use. Provider identity, the failure reason, Retry, and Edit locations are available under View details → Routing details. Disable external calls at any time:
 
 ```bash
 bin/departures config network off
 ```
 
-See [provider details](docs/PROVIDERS.md) for policies, caching, and failure behavior.
+See [provider details](docs/PROVIDERS.md) for policies and fallback behavior, and [routing diagnostics](docs/ROUTING_DIAGNOSTICS.md) for the v0.3 investigation.
 
 ## Optional live traffic
 

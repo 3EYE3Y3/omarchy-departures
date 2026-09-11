@@ -5,7 +5,7 @@ import QtQuick.Controls as QQC
 import qs.Commons
 import qs.Ui
 import "js/timing.js" as Timing
-import "js/profiles.js" as Profiles
+import "js/presentation.js" as Presentation
 
 Panel {
     id: root
@@ -18,9 +18,22 @@ Panel {
     property var departuresService: null
     property string view: "board"
     property string editingId: ""
+    property string selectedId: ""
     property string pendingDeleteId: ""
+    property bool quickOpen: false
     property string quickError: ""
     readonly property var upcoming: departuresService ? departuresService.upcoming : []
+    readonly property var allDepartures: departuresService ? departuresService.departures : []
+    readonly property double currentNow: departuresService && departuresService.snapshot
+        ? Number(departuresService.snapshot.now) : Date.now()
+    readonly property var selectedDeparture: selectedRecord()
+
+    function selectedRecord() {
+        var records = departuresService ? departuresService.departures : []
+        for (var i = 0; i < records.length; i++)
+            if (String(records[i].id) === selectedId) return records[i]
+        return null
+    }
 
     function open() {
         controller.show()
@@ -35,21 +48,32 @@ Panel {
     }
 
     function beginEdit(departure) {
+        if (!departure) return
         editingId = String(departure.id)
         view = "editor"
         editor.openFor(departure)
     }
 
-    function leaveEditor() {
+    function beginDetails(departure) {
+        if (!departure) return
+        selectedId = String(departure.id)
+        view = "details"
+        details.routingExpanded = false
+        details.actionMessage = ""
+    }
+
+    function leaveSubview() {
         view = "board"
         editingId = ""
+        selectedId = ""
+        pendingDeleteId = ""
         editor.errorText = ""
         keyCatcher.forceActiveFocus()
     }
 
     function saveDraft(draft) {
         if (!departuresService) {
-            editor.errorText = "Departures service is not available"
+            editor.errorText = "Departures is still starting. Try again in a moment."
             return
         }
         var result = departuresService.saveDeparture(draft, editingId)
@@ -57,15 +81,18 @@ Panel {
             editor.errorText = result.errors.join(" · ")
             return
         }
-        leaveEditor()
+        leaveSubview()
     }
 
-    function requestDelete(id) {
-        if (pendingDeleteId === String(id)) {
+    function requestDelete(departure) {
+        if (!departure) return
+        var id = String(departure.id)
+        if (pendingDeleteId === id) {
             if (departuresService) departuresService.deleteDeparture(id)
-            pendingDeleteId = ""
+            leaveSubview()
         } else {
-            pendingDeleteId = String(id)
+            pendingDeleteId = id
+            details.actionMessage = "Press Delete again to confirm"
             deleteReset.restart()
         }
     }
@@ -74,15 +101,23 @@ Panel {
         if (!departuresService) return
         var result = departuresService.saveNatural(quickField.text)
         if (!result.ok) {
-            quickError = result.errors ? result.errors.join(" · ") : "Could not understand that departure"
+            quickError = result.errors ? result.errors.join(" · ") : "Add a destination, date, and time"
             return
         }
         quickField.text = ""
         quickError = ""
+        quickOpen = false
         keyCatcher.forceActiveFocus()
     }
 
-    Timer { id: deleteReset; interval: 4000; onTriggered: root.pendingDeleteId = "" }
+    Timer {
+        id: deleteReset
+        interval: 4000
+        onTriggered: {
+            root.pendingDeleteId = ""
+            if (details.actionMessage === "Press Delete again to confirm") details.actionMessage = ""
+        }
+    }
 
     KeyboardPanel {
         id: popup
@@ -91,7 +126,7 @@ Panel {
         bar: root.bar
         open: root.opened
         focusTarget: keyCatcher
-        contentWidth: fittedContentWidth(Style.space(660))
+        contentWidth: fittedContentWidth(Style.space(620))
         contentHeight: fittedContentHeight(Math.min(Style.space(760), content.implicitHeight))
 
         PanelKeyCatcher {
@@ -105,12 +140,13 @@ Panel {
                     event.accepted = true
                 }
             }
-            Keys.onEscapePressed: root.view === "editor" ? root.leaveEditor() : root.close()
+            Keys.onEscapePressed: root.view === "board" ? root.close() : root.leaveSubview()
 
             Item {
                 id: content
                 anchors.fill: parent
-                implicitHeight: root.view === "editor" ? editor.implicitHeight : board.implicitHeight
+                implicitHeight: root.view === "editor" ? editor.implicitHeight
+                    : (root.view === "details" ? details.implicitHeight : board.implicitHeight)
 
                 ColumnLayout {
                     id: board
@@ -129,228 +165,158 @@ Panel {
                             font.letterSpacing: 0.6
                             Layout.fillWidth: true
                         }
-                        Text {
-                            text: Qt.formatDateTime(new Date(root.departuresService && root.departuresService.snapshot ? root.departuresService.snapshot.now : Date.now()), "ddd dd MMM").toUpperCase()
-                            color: Color.foreground
-                            opacity: 0.6
-                            font.family: "monospace"
-                            font.pixelSize: Style.font.bodySmall
-                        }
-                    }
-
-                    Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Color.foreground; opacity: 0.18 }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: Style.space(8)
-                        TextField {
-                            id: quickField
-                            Layout.fillWidth: true
-                            placeholderText: "Quick add: Morning meeting tomorrow at 9am at Central Office"
-                            maximumLength: 240
-                            onAccepted: root.createNatural()
-                        }
-                        Button { text: "+  ADD"; selected: true; focusable: true; onClicked: root.beginCreate() }
-                    }
-                    Text {
-                        visible: root.quickError !== ""
-                        Layout.fillWidth: true
-                        text: root.quickError
-                        color: Color.urgent
-                        font.family: Style.font.family
-                        font.pixelSize: Style.font.caption
-                    }
-
-                    ColumnLayout {
-                        visible: root.upcoming.length === 0
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: Style.space(240)
-                        spacing: Style.space(14)
-                        Item { Layout.fillHeight: true }
-                        Text { text: "NO UPCOMING DEPARTURES"; color: Color.foreground; font.family: "monospace"; font.pixelSize: Style.font.title; font.bold: true; Layout.alignment: Qt.AlignHCenter }
-                        Text { text: "Add somewhere you need to be.\nDepartures will work backwards to your leave time."; horizontalAlignment: Text.AlignHCenter; color: Color.foreground; opacity: 0.58; font.family: Style.font.family; font.pixelSize: Style.font.body; Layout.alignment: Qt.AlignHCenter }
-                        Button { text: "+  ADD DEPARTURE"; selected: true; focusable: true; Layout.alignment: Qt.AlignHCenter; onClicked: root.beginCreate() }
-                        Item { Layout.fillHeight: true }
-                    }
-
-                    QQC.ScrollView {
-                        visible: root.upcoming.length > 0
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: Math.min(Style.space(485), Math.max(Style.space(175), root.upcoming.length * Style.space(175)))
-                        clip: true
-                        QQC.ScrollBar.horizontal.policy: QQC.ScrollBar.AlwaysOff
-
-                        Column {
-                            id: departuresColumn
-                            width: parent.width
-                            spacing: 0
-
-                            Repeater {
-                                model: root.upcoming
-                                delegate: Column {
-                                    id: row
-                                    required property var modelData
-                                    required property int index
-                                    width: departuresColumn.width
-                                    spacing: Style.space(9)
-                                    topPadding: Style.space(10)
-                                    bottomPadding: Style.space(12)
-
-                                    Text {
-                                        visible: row.index === 0
-                                        text: "NEXT DEPARTURE"
-                                        color: Color.accent
-                                        opacity: 0.72
-                                        font.family: Style.font.family
-                                        font.pixelSize: Style.font.caption
-                                        font.bold: true
-                                        font.letterSpacing: 1
-                                    }
-
-                                    RowLayout {
-                                        width: parent.width
-                                        spacing: Style.space(14)
-                                        ColumnLayout {
-                                            Layout.preferredWidth: Style.space(88)
-                                            spacing: 0
-                                            Text { text: Timing.localTime(row.modelData.eventTime); color: Color.foreground; font.family: "monospace"; font.pixelSize: Style.font.title; font.bold: true }
-                                            Text { text: Timing.dayLabel(row.modelData.eventTime, root.departuresService.snapshot.now); color: Color.foreground; opacity: 0.45; font.family: "monospace"; font.pixelSize: Style.font.caption }
-                                        }
-                                        ColumnLayout {
-                                            Layout.fillWidth: true
-                                            spacing: Style.space(2)
-                                            Text { Layout.fillWidth: true; text: String(row.modelData.destination).toUpperCase(); elide: Text.ElideRight; color: Color.foreground; font.family: Style.font.family; font.pixelSize: row.index === 0 ? Style.font.title : Style.font.body; font.bold: true }
-                                            Text { Layout.fillWidth: true; text: String(row.modelData.title); elide: Text.ElideRight; color: Color.foreground; opacity: 0.58; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
-                                        }
-                                        ColumnLayout {
-                                            Layout.preferredWidth: Style.space(150)
-                                            spacing: 0
-                                            Text { text: "LEAVE"; color: Color.accent; opacity: 0.72; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
-                                            Text { text: Timing.localTime(row.modelData.leaveTime); color: row.modelData.status === "LEAVE NOW" ? Color.urgent : Color.accent; font.family: "monospace"; font.pixelSize: Style.font.display; font.bold: true }
-                                        }
-                                        ColumnLayout {
-                                            spacing: Style.space(3)
-                                            Button { text: "ROUTE"; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.departuresService.openNavigation(row.modelData) }
-                                            Button { text: "EDIT"; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.beginEdit(row.modelData) }
-                                            Button { text: root.pendingDeleteId === String(row.modelData.id) ? "CONFIRM" : "DELETE"; fontSize: Style.font.caption; foreground: root.pendingDeleteId === String(row.modelData.id) ? Color.urgent : Color.foreground; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.requestDelete(row.modelData.id) }
-                                        }
-                                    }
-
-                                    RowLayout {
-                                        width: parent.width
-                                        spacing: Style.space(16)
-                                        Item { Layout.preferredWidth: Style.space(102) }
-                                        GridLayout {
-                                            Layout.fillWidth: true
-                                            columns: 3
-                                            columnSpacing: Style.space(18)
-                                            Repeater {
-                                                model: [
-                                                    { label: "GET READY", value: Timing.localTime(row.modelData.getReadyTime) },
-                                                    { label: "ARRIVE", value: Timing.localTime(row.modelData.targetArrivalTime) },
-                                                    { label: "EVENT", value: Timing.localTime(row.modelData.eventTime) }
-                                                ]
-                                                delegate: RowLayout {
-                                                    id: boardTime
-                                                    required property var modelData
-                                                    Text { text: boardTime.modelData.label; color: Color.foreground; opacity: 0.45; font.family: Style.font.family; font.pixelSize: Style.font.caption }
-                                                    Text { text: boardTime.modelData.value; color: Color.foreground; font.family: "monospace"; font.pixelSize: Style.font.bodySmall }
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    RowLayout {
-                                        width: parent.width
-                                        spacing: Style.space(8)
-                                        Item { Layout.preferredWidth: Style.space(102) }
-                                        Text {
-                                            Layout.fillWidth: true
-                                            text: String(row.modelData.timingMode || "auto").toUpperCase() + "  ·  "
-                                                + row.modelData.effectiveTravelMinutes + " min " + Profiles.transportLabel(row.modelData.transportMode).toLowerCase()
-                                                + (row.modelData.timingMode === "auto" && row.modelData.routeProvider ? "  ·  " + String(row.modelData.routeProvider).toUpperCase() : "")
-                                                + (Number(row.modelData.trafficDelayMinutes || 0) > 0 ? "  ·  TRAFFIC +" + row.modelData.trafficDelayMinutes + " min" : "")
-                                                + "  ·  " + Number(row.modelData.parkingMinutes || 0) + " parking"
-                                                + "  ·  " + Number(row.modelData.walkingMinutes || 0) + " walk"
-                                                + "  ·  " + row.modelData.arrivalBufferMinutes + " safety"
-                                            color: Color.foreground
-                                            opacity: 0.52
-                                            font.family: Style.font.family
-                                            font.pixelSize: Style.font.caption
-                                        }
-                                        Text { text: "●  " + row.modelData.status; color: row.modelData.status === "LEAVE NOW" ? Color.urgent : (row.modelData.status === "LEAVE SOON" ? Color.accent : Color.foreground); opacity: row.modelData.status === "ON TIME" ? 0.68 : 1; font.family: "monospace"; font.pixelSize: Style.font.caption; font.bold: true }
-                                    }
-
-                                    Text {
-                                        visible: row.modelData.timingMode === "auto" && Number(row.modelData.routeAdjustmentMinutes || 0) !== 0
-                                        width: parent.width - Style.space(102)
-                                        x: Style.space(102)
-                                        text: (Number(row.modelData.routeAdjustmentMinutes || 0) > 0 ? "LEAVE MOVED EARLIER" : "LEAVE MOVED LATER")
-                                            + "  ·  current " + row.modelData.effectiveTravelMinutes + " min"
-                                            + " vs normal " + (row.modelData.effectiveTravelMinutes - Number(row.modelData.routeAdjustmentMinutes || 0)) + " min"
-                                            + (row.modelData.routeProvider ? "  ·  " + String(row.modelData.routeProvider).toUpperCase() : "")
-                                        color: Number(row.modelData.routeAdjustmentMinutes || 0) > 0 ? Color.urgent : Color.accent
-                                        font.family: "monospace"
-                                        font.pixelSize: Style.font.caption
-                                        font.bold: true
-                                        elide: Text.ElideRight
-                                    }
-
-                                    Flow {
-                                        visible: Array.isArray(row.modelData.reminders) && row.modelData.reminders.length > 0
-                                            && (row.index === 0 || ["GET READY", "LEAVE SOON", "LEAVE NOW"].indexOf(row.modelData.status) !== -1)
-                                        width: parent.width - Style.space(102)
-                                        x: Style.space(102)
-                                        spacing: Style.space(5)
-                                        Text { text: "READY"; color: Color.foreground; opacity: 0.5; font.family: Style.font.family; font.pixelSize: Style.font.caption }
-                                        Repeater {
-                                            model: Array.isArray(row.modelData.reminders) ? row.modelData.reminders : []
-                                            delegate: Button {
-                                                id: readyButton
-                                                required property string modelData
-                                                readonly property bool checked: Array.isArray(row.modelData.readyItems) && row.modelData.readyItems.indexOf(modelData) !== -1
-                                                text: (checked ? "✓  " : "○  ") + modelData
-                                                bordered: true
-                                                fontSize: Style.font.caption
-                                                horizontalPadding: Style.space(6)
-                                                verticalPadding: Style.space(3)
-                                                onClicked: root.departuresService.toggleReadyItem(row.modelData.id, modelData)
-                                            }
-                                        }
-                                    }
-
-                                    Rectangle { width: parent.width; height: 1; color: Color.foreground; opacity: 0.12 }
-                                }
+                        Button {
+                            visible: root.upcoming.length > 0
+                            text: root.quickOpen ? "CLOSE QUICK ADD" : "QUICK ADD"
+                            focusable: true
+                            onClicked: {
+                                root.quickOpen = !root.quickOpen
+                                if (root.quickOpen) Qt.callLater(function() { quickField.forceActiveFocus() })
                             }
                         }
                     }
 
-                    Rectangle {
-                        visible: root.upcoming.length > 0
+                    Text {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: nextActionColumn.implicitHeight + Style.space(20)
-                        color: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.07)
-                        radius: Math.max(0, Style.cornerRadius)
-                        ColumnLayout {
-                            id: nextActionColumn
-                            anchors.fill: parent
-                            anchors.margins: Style.space(10)
-                            spacing: Style.space(3)
-                            Text { text: "NEXT ACTION"; color: Color.foreground; opacity: 0.5; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
-                            Text { Layout.fillWidth: true; text: root.departuresService ? root.departuresService.nextAction : "NO UPCOMING DEPARTURES"; color: Color.accent; font.family: "monospace"; font.pixelSize: Style.font.title; font.bold: true; elide: Text.ElideRight }
+                        text: "Know when to get ready and when to leave."
+                        color: Color.foreground
+                        opacity: 0.58
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.bodySmall
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        visible: root.quickOpen && root.upcoming.length > 0
+                        spacing: Style.space(5)
+                        RowLayout {
+                            Layout.fillWidth: true
+                            TextField {
+                                id: quickField
+                                Layout.fillWidth: true
+                                placeholderText: "Morning meeting tomorrow at 9 at Central Office"
+                                maximumLength: 240
+                                onAccepted: root.createNatural()
+                            }
+                            Button { text: "CREATE"; selected: true; focusable: true; onClicked: root.createNatural() }
+                        }
+                        Text {
+                            visible: root.quickError !== ""
+                            Layout.fillWidth: true
+                            text: root.quickError
+                            color: Color.foreground
+                            opacity: 0.72
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption
+                            wrapMode: Text.WordWrap
                         }
                     }
 
-                    RowLayout {
+                    ColumnLayout {
                         Layout.fillWidth: true
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: Style.space(2)
-                            Text { text: root.departuresService ? root.departuresService.capabilityLine : "Routing unavailable"; color: Color.foreground; opacity: 0.45; font.family: Style.font.family; font.pixelSize: Style.font.caption }
-                            Text { visible: root.departuresService && (root.departuresService.lastError !== "" || root.departuresService.providerMessage !== ""); text: root.departuresService ? (root.departuresService.lastError || root.departuresService.providerMessage) : ""; color: Color.urgent; font.family: Style.font.family; font.pixelSize: Style.font.caption; Layout.fillWidth: true; elide: Text.ElideRight }
+                        visible: root.upcoming.length === 0
+                        Layout.topMargin: Style.space(32)
+                        Layout.bottomMargin: Style.space(32)
+                        spacing: Style.space(12)
+
+                        Text {
+                            text: root.allDepartures.length === 0 ? "No departures yet" : "No upcoming departures"
+                            color: Color.foreground
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.title
+                            font.bold: true
+                            Layout.alignment: Qt.AlignHCenter
                         }
-                        Button { visible: root.departuresService && !root.departuresService.settings.networkEnabled; text: "ENABLE FREE ROUTING"; fontSize: Style.font.caption; onClicked: root.departuresService.updateSettings({ networkEnabled: true }) }
-                        Button { visible: root.upcoming.length > 0; text: "+  ADD DEPARTURE"; selected: true; focusable: true; onClicked: root.beginCreate() }
+                        Text {
+                            text: root.allDepartures.length === 0
+                                ? "Add somewhere you need to be.\nDepartures will work backwards from your arrival time."
+                                : "Your previous departures have passed.\nAdd the next place you need to be."
+                            horizontalAlignment: Text.AlignHCenter
+                            color: Color.foreground
+                            opacity: 0.58
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.body
+                            Layout.alignment: Qt.AlignHCenter
+                        }
+                        Button {
+                            text: root.allDepartures.length === 0 ? "ADD YOUR FIRST DEPARTURE" : "+  ADD DEPARTURE"
+                            selected: true
+                            focusable: true
+                            Layout.alignment: Qt.AlignHCenter
+                            onClicked: root.beginCreate()
+                        }
+                    }
+
+                    DepartureCard {
+                        id: primaryCard
+                        visible: root.upcoming.length > 0
+                        Layout.fillWidth: true
+                        departure: root.upcoming.length > 0 ? root.upcoming[0] : null
+                        now: root.currentNow
+                        onDetailsRequested: root.beginDetails(primaryCard.departure)
+                        onAddRequested: root.beginCreate()
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        visible: root.upcoming.length > 1
+                        spacing: Style.space(6)
+
+                        Text {
+                            text: "LATER"
+                            color: Color.foreground
+                            opacity: 0.45
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption
+                            font.bold: true
+                            font.letterSpacing: 1
+                        }
+
+                        Repeater {
+                            model: root.upcoming.length > 1 ? root.upcoming.slice(1) : []
+                            delegate: Rectangle {
+                                id: laterRow
+                                required property var modelData
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: laterContent.implicitHeight + Style.space(18)
+                                radius: Math.max(0, Style.cornerRadius)
+                                color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.035)
+
+                                RowLayout {
+                                    id: laterContent
+                                    anchors.fill: parent
+                                    anchors.margins: Style.space(9)
+                                    spacing: Style.space(10)
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 1
+                                        Text {
+                                            Layout.fillWidth: true
+                                            text: String(laterRow.modelData.destination)
+                                            color: Color.foreground
+                                            font.family: Style.font.family
+                                            font.pixelSize: Style.font.body
+                                            font.bold: true
+                                            elide: Text.ElideRight
+                                        }
+                                        Text {
+                                            Layout.fillWidth: true
+                                            text: Presentation.arrivalLabel(laterRow.modelData.arrivalTime, root.currentNow)
+                                                + (Presentation.hasUsableTiming(laterRow.modelData)
+                                                    ? "  ·  Leave " + Timing.localTime(laterRow.modelData.leaveTime)
+                                                    : "  ·  Check timing")
+                                                + "  ·  " + Presentation.travelLine(laterRow.modelData)
+                                            color: Color.foreground
+                                            opacity: 0.55
+                                            font.family: Style.font.family
+                                            font.pixelSize: Style.font.caption
+                                            elide: Text.ElideRight
+                                        }
+                                    }
+                                    Button { text: "DETAILS"; focusable: true; onClicked: root.beginDetails(laterRow.modelData) }
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -364,7 +330,23 @@ Panel {
                         width: parent.width
                         departuresService: root.departuresService
                         onSaveRequested: function(draft) { root.saveDraft(draft) }
-                        onCancelRequested: root.leaveEditor()
+                        onCancelRequested: root.leaveSubview()
+                    }
+                }
+
+                QQC.ScrollView {
+                    visible: root.view === "details"
+                    anchors.fill: parent
+                    clip: true
+                    QQC.ScrollBar.horizontal.policy: QQC.ScrollBar.AlwaysOff
+                    DepartureDetails {
+                        id: details
+                        width: parent.width
+                        departure: root.selectedDeparture
+                        departuresService: root.departuresService
+                        onBackRequested: root.leaveSubview()
+                        onEditRequested: function(departure) { root.beginEdit(departure) }
+                        onDeleteRequested: function(departure) { root.requestDelete(departure) }
                     }
                 }
             }

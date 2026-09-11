@@ -77,3 +77,10 @@ test("manual provider observations do not change notification timing or revision
   const sent = Notifications.mark({}, { key: Notifications.keyFor(manual, "ready") }, before.getReadyTime)
   assert.equal(Notifications.dueEvents(providerObserved, after.getReadyTime, sent, after).length, 0)
 })
+
+test("missing travel timing never emits an unreliable notification", () => {
+  const degraded = { ...departure, autoTravelMinutes: null, manualTravelMinutes: null }
+  const degradedTimes = Timing.derive(degraded)
+  assert.equal(degradedTimes.timingReliable, false)
+  assert.equal(Notifications.dueEvents(degraded, eventTime - 1, {}, degradedTimes).length, 0)
+})

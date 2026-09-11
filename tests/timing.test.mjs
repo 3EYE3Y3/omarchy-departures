@@ -99,7 +99,7 @@ test("sorts multiple departures and selects the next unexpired one", () => {
 test("handles future dates and next-action guidance", () => {
   const now = new Date(2026, 8, 11, 10, 0).getTime()
   const tomorrow = departure(new Date(2026, 8, 12, 18, 30).getTime())
-  assert.equal(Timing.nextAction(tomorrow, now), "NEXT DEPARTURE TOMORROW 18:30")
+  assert.equal(Timing.nextAction(tomorrow, now), "Next departure tomorrow at 18:30")
 })
 
 test("handles a departure across midnight", () => {
@@ -126,14 +126,26 @@ test("next action changes at get-ready and leave boundaries", () => {
   const event = new Date(2026, 8, 11, 18, 30).getTime()
   const dep = departure(event)
   const times = Timing.derive(dep)
-  assert.match(Timing.nextAction(dep, times.getReadyTime - 60000), /^GET READY IN /)
-  assert.match(Timing.nextAction(dep, times.getReadyTime), /^LEAVE FOR MORNING MEETING IN /)
-  assert.equal(Timing.nextAction(dep, times.leaveTime), "LEAVE NOW FOR MORNING MEETING")
-  assert.equal(Timing.nextAction(null, times.leaveTime), "NO UPCOMING DEPARTURES")
+  assert.match(Timing.nextAction(dep, times.getReadyTime - 60000), /^Get ready in /)
+  assert.match(Timing.nextAction(dep, times.getReadyTime), /^Leave in /)
+  assert.equal(Timing.nextAction(dep, times.leaveTime), "Leave now")
+  assert.equal(Timing.nextAction(dep, times.targetArrivalTime), "You should already be on your way")
+  assert.equal(Timing.nextAction(null, times.leaveTime), "No upcoming departures")
 })
 
 test("strict local date parsing rejects rolled-over dates", () => {
   assert.ok(Number.isFinite(Timing.localDateTime("2026-09-11", "18:30")))
   assert.ok(Number.isNaN(Timing.localDateTime("2026-02-31", "18:30")))
   assert.ok(Number.isNaN(Timing.localDateTime("2026-09-11", "24:00")))
+})
+
+test("missing timing is explicit and never fabricates a departure time", () => {
+  const now = new Date(2026, 8, 11, 12, 0).getTime()
+  const degraded = departure(now + 3600000, { autoTravelMinutes: null, manualTravelMinutes: null })
+  const result = Timing.derive(degraded)
+  assert.equal(result.timingReliable, false)
+  assert.equal(Number.isNaN(result.effectiveTravelMinutes), true)
+  assert.equal(Timing.status(degraded, now), "NEEDS ATTENTION")
+  assert.equal(Timing.nextAction(degraded, now), "Departure time needs attention")
+  assert.equal(Timing.isExpired({ ...degraded, arrivalTime: now - 1 }, now), true)
 })

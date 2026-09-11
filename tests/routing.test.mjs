@@ -48,9 +48,10 @@ test("material decreases require two consistent observations", () => {
 
 test("provider failure preserves timing and records fallback state", () => {
   const departure = { timingMode: "auto", manualTravelMinutes: 30, autoTravelMinutes: 35 }
-  const applied = Routing.applyResult(departure, { ok: false, error: { message: "timeout" } }, 20)
+  const applied = Routing.applyResult(departure, { ok: false, error: { code: "timeout", message: "timeout" } }, 20)
   assert.equal(applied.departure.autoTravelMinutes, 35)
   assert.equal(applied.departure.routeStatus, "fallback")
+  assert.equal(applied.departure.routeErrorCode, "timeout")
 })
 
 test("manual timing rejects provider authority and route refresh eligibility", () => {

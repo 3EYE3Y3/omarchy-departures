@@ -82,6 +82,16 @@ test("restores expired records without treating them as invalid", () => {
   assert.equal(Domain.restore(record).id, "dep-1")
 })
 
+test("restores a departure with missing timing so the user can repair it", () => {
+  const degraded = Domain.create(input, now, "degraded").value
+  degraded.autoTravelMinutes = null
+  degraded.manualTravelMinutes = null
+  const restored = Domain.restore(degraded)
+  assert.equal(restored.id, "degraded")
+  assert.equal(restored.autoTravelMinutes, null)
+  assert.equal(restored.manualTravelMinutes, null)
+})
+
 test("restores a v0.1 record with zero-valued v0.2 logistics defaults", () => {
   const legacy = { ...Domain.create(input, now, "legacy").value, travelMinutes: 15 }
   delete legacy.timingMode
