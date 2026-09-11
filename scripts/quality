@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+project_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$project_root"
+
+npm test
+omarchy plugin validate "$project_root"
+
+qml_lint="$(command -v qmllint || true)"
+[[ -n "$qml_lint" ]] || [[ ! -x /usr/lib/qt6/bin/qmllint ]] || qml_lint=/usr/lib/qt6/bin/qmllint
+if [[ -n "$qml_lint" ]]; then
+  import_root="$(mktemp -d)"
+  cleanup_import_root() {
+    unlink "$import_root/qs" 2>/dev/null || true
+    rmdir "$import_root" 2>/dev/null || true
+  }
+  trap cleanup_import_root EXIT
+  ln -s /usr/share/omarchy/shell "$import_root/qs"
+  "$qml_lint" -W 9999 -I "$import_root" BarWidget.qml DepartureEditor.qml Panel.qml Service.qml
+else
+  echo "SKIP qmllint (not installed)"
+fi
+
+bash -n scripts/quality
+if command -v shellcheck >/dev/null; then shellcheck scripts/quality; else echo "SKIP shellcheck (not installed)"; fi
+git diff --check
+git diff --cached --check

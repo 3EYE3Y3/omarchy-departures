@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.3eye3y3.departures",
+  "name": "Departures",
+  "version": "0.1.0",
+  "author": "3EYE3Y3",
+  "license": "MIT",
+  "description": "Know when to get ready and when to leave.",
+  "kinds": ["service", "bar-widget"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Departures",
+    "description": "Your next leave time and departure board",
+    "category": "Productivity",
+    "defaultSection": "center",
+    "allowMultiple": false
+  }
+}
