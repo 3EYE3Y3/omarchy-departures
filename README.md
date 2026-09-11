@@ -41,6 +41,7 @@ long-lived service used by the editor:
 bin/departures state
 bin/departures snapshot
 bin/departures open
+bin/departures new
 ```
 
 `add`, `update`, and `remove` accept JSON or an ID respectively. Timestamps are
