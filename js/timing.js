@@ -12,16 +12,30 @@ function minutes(value) {
     return Math.max(0, Math.round(finiteNumber(value, 0))) * MINUTE_MS
 }
 
+function effectiveTravelMinutes(departure) {
+    var routed = finiteNumber(departure && departure.routeTravelMinutes, NaN)
+    return isFinite(routed) && routed >= 0 ? Math.round(routed)
+        : Math.max(0, Math.round(finiteNumber(departure && departure.travelMinutes, 0)))
+}
+
 function derive(departure) {
     var eventTime = finiteNumber(departure && departure.arrivalTime, NaN)
     var targetArrivalTime = eventTime - minutes(departure && departure.arrivalBufferMinutes)
-    var leaveTime = targetArrivalTime - minutes(departure && departure.travelMinutes)
+    var parkingStartTime = targetArrivalTime - minutes(departure && departure.walkingMinutes)
+    var routeArrivalTime = parkingStartTime - minutes(departure && departure.parkingMinutes)
+    var travel = effectiveTravelMinutes(departure)
+    var leaveTime = routeArrivalTime - minutes(travel)
     var getReadyTime = leaveTime - minutes(departure && departure.preparationMinutes)
     return {
         eventTime: eventTime,
         targetArrivalTime: targetArrivalTime,
+        parkingStartTime: parkingStartTime,
+        routeArrivalTime: routeArrivalTime,
         leaveTime: leaveTime,
-        getReadyTime: getReadyTime
+        getReadyTime: getReadyTime,
+        effectiveTravelMinutes: travel,
+        logisticsMinutes: Math.max(0, Math.round(finiteNumber(departure && departure.parkingMinutes, 0)))
+            + Math.max(0, Math.round(finiteNumber(departure && departure.walkingMinutes, 0)))
     }
 }
 

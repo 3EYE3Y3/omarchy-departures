@@ -19,6 +19,7 @@ Panel {
     property string view: "board"
     property string editingId: ""
     property string pendingDeleteId: ""
+    property string quickError: ""
     readonly property var upcoming: departuresService ? departuresService.upcoming : []
 
     function open() {
@@ -67,6 +68,18 @@ Panel {
             pendingDeleteId = String(id)
             deleteReset.restart()
         }
+    }
+
+    function createNatural() {
+        if (!departuresService) return
+        var result = departuresService.saveNatural(quickField.text)
+        if (!result.ok) {
+            quickError = result.errors ? result.errors.join(" · ") : "Could not understand that departure"
+            return
+        }
+        quickField.text = ""
+        quickError = ""
+        keyCatcher.forceActiveFocus()
     }
 
     Timer { id: deleteReset; interval: 4000; onTriggered: root.pendingDeleteId = "" }
@@ -127,6 +140,27 @@ Panel {
 
                     Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Color.foreground; opacity: 0.18 }
 
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: Style.space(8)
+                        TextField {
+                            id: quickField
+                            Layout.fillWidth: true
+                            placeholderText: "Dentist tomorrow at 2pm at Example Clinic"
+                            maximumLength: 240
+                            onAccepted: root.createNatural()
+                        }
+                        Button { text: "ADD"; selected: true; focusable: true; onClicked: root.createNatural() }
+                    }
+                    Text {
+                        visible: root.quickError !== ""
+                        Layout.fillWidth: true
+                        text: root.quickError
+                        color: Color.urgent
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
+                    }
+
                     ColumnLayout {
                         visible: root.upcoming.length === 0
                         Layout.fillWidth: true
@@ -156,10 +190,22 @@ Panel {
                                 delegate: Column {
                                     id: row
                                     required property var modelData
+                                    required property int index
                                     width: departuresColumn.width
                                     spacing: Style.space(9)
                                     topPadding: Style.space(10)
                                     bottomPadding: Style.space(12)
+
+                                    Text {
+                                        visible: row.index === 0
+                                        text: "NEXT DEPARTURE"
+                                        color: Color.accent
+                                        opacity: 0.72
+                                        font.family: Style.font.family
+                                        font.pixelSize: Style.font.caption
+                                        font.bold: true
+                                        font.letterSpacing: 1
+                                    }
 
                                     RowLayout {
                                         width: parent.width
@@ -173,8 +219,8 @@ Panel {
                                         ColumnLayout {
                                             Layout.fillWidth: true
                                             spacing: Style.space(2)
-                                            Text { Layout.fillWidth: true; text: String(row.modelData.title).toUpperCase(); elide: Text.ElideRight; color: Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true }
-                                            Text { Layout.fillWidth: true; text: String(row.modelData.destination); elide: Text.ElideRight; color: Color.foreground; opacity: 0.58; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
+                                            Text { Layout.fillWidth: true; text: String(row.modelData.destination).toUpperCase(); elide: Text.ElideRight; color: Color.foreground; font.family: Style.font.family; font.pixelSize: row.index === 0 ? Style.font.title : Style.font.body; font.bold: true }
+                                            Text { Layout.fillWidth: true; text: String(row.modelData.title); elide: Text.ElideRight; color: Color.foreground; opacity: 0.58; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
                                         }
                                         ColumnLayout {
                                             Layout.preferredWidth: Style.space(150)
@@ -184,6 +230,7 @@ Panel {
                                         }
                                         ColumnLayout {
                                             spacing: Style.space(3)
+                                            Button { text: "ROUTE"; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.departuresService.openNavigation(row.modelData) }
                                             Button { text: "EDIT"; fontSize: Style.font.caption; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.beginEdit(row.modelData) }
                                             Button { text: root.pendingDeleteId === String(row.modelData.id) ? "CONFIRM" : "DELETE"; fontSize: Style.font.caption; foreground: root.pendingDeleteId === String(row.modelData.id) ? Color.urgent : Color.foreground; horizontalPadding: Style.space(6); verticalPadding: Style.space(3); onClicked: root.requestDelete(row.modelData.id) }
                                         }
@@ -219,8 +266,11 @@ Panel {
                                         Item { Layout.preferredWidth: Style.space(102) }
                                         Text {
                                             Layout.fillWidth: true
-                                            text: row.modelData.travelMinutes + " min " + Profiles.transportLabel(row.modelData.transportMode).toLowerCase()
-                                                + "  ·  " + row.modelData.arrivalBufferMinutes + " min buffer"
+                                            text: row.modelData.effectiveTravelMinutes + " min " + Profiles.transportLabel(row.modelData.transportMode).toLowerCase()
+                                                + (Number(row.modelData.trafficDelayMinutes || 0) > 0 ? "  ·  TRAFFIC +" + row.modelData.trafficDelayMinutes + " min" : "")
+                                                + "  ·  " + Number(row.modelData.parkingMinutes || 0) + " parking"
+                                                + "  ·  " + Number(row.modelData.walkingMinutes || 0) + " walk"
+                                                + "  ·  " + row.modelData.arrivalBufferMinutes + " safety"
                                             color: Color.foreground
                                             opacity: 0.52
                                             font.family: Style.font.family
@@ -230,15 +280,41 @@ Panel {
                                     }
 
                                     Text {
-                                        visible: Array.isArray(row.modelData.reminders) && row.modelData.reminders.length > 0
-                                            && ["GET READY", "LEAVE SOON", "LEAVE NOW"].indexOf(row.modelData.status) !== -1
+                                        visible: Number(row.modelData.routeAdjustmentMinutes || 0) !== 0
                                         width: parent.width - Style.space(102)
                                         x: Style.space(102)
-                                        text: "REMEMBER  " + (Array.isArray(row.modelData.reminders) ? row.modelData.reminders.join("  ·  ") : "")
-                                        color: Color.accent
-                                        font.family: Style.font.family
+                                        text: (Number(row.modelData.routeAdjustmentMinutes || 0) > 0 ? "LEAVE MOVED EARLIER" : "LEAVE MOVED LATER")
+                                            + "  ·  current " + row.modelData.effectiveTravelMinutes + " min"
+                                            + " vs normal " + row.modelData.travelMinutes + " min"
+                                            + (row.modelData.routeProvider ? "  ·  " + String(row.modelData.routeProvider).toUpperCase() : "")
+                                        color: Number(row.modelData.routeAdjustmentMinutes || 0) > 0 ? Color.urgent : Color.accent
+                                        font.family: "monospace"
                                         font.pixelSize: Style.font.caption
+                                        font.bold: true
                                         elide: Text.ElideRight
+                                    }
+
+                                    Flow {
+                                        visible: Array.isArray(row.modelData.reminders) && row.modelData.reminders.length > 0
+                                            && (row.index === 0 || ["GET READY", "LEAVE SOON", "LEAVE NOW"].indexOf(row.modelData.status) !== -1)
+                                        width: parent.width - Style.space(102)
+                                        x: Style.space(102)
+                                        spacing: Style.space(5)
+                                        Text { text: "READY"; color: Color.foreground; opacity: 0.5; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                                        Repeater {
+                                            model: Array.isArray(row.modelData.reminders) ? row.modelData.reminders : []
+                                            delegate: Button {
+                                                id: readyButton
+                                                required property string modelData
+                                                readonly property bool checked: Array.isArray(row.modelData.readyItems) && row.modelData.readyItems.indexOf(modelData) !== -1
+                                                text: (checked ? "✓  " : "○  ") + modelData
+                                                bordered: true
+                                                fontSize: Style.font.caption
+                                                horizontalPadding: Style.space(6)
+                                                verticalPadding: Style.space(3)
+                                                onClicked: root.departuresService.toggleReadyItem(row.modelData.id, modelData)
+                                            }
+                                        }
                                     }
 
                                     Rectangle { width: parent.width; height: 1; color: Color.foreground; opacity: 0.12 }
@@ -264,11 +340,15 @@ Panel {
                     }
 
                     RowLayout {
-                        visible: root.upcoming.length > 0
                         Layout.fillWidth: true
-                        Text { visible: root.departuresService && root.departuresService.lastError !== ""; text: root.departuresService ? root.departuresService.lastError : ""; color: Color.urgent; font.family: Style.font.family; font.pixelSize: Style.font.caption; Layout.fillWidth: true; elide: Text.ElideRight }
-                        Item { Layout.fillWidth: !(root.departuresService && root.departuresService.lastError !== "") }
-                        Button { text: "+  ADD DEPARTURE"; selected: true; focusable: true; onClicked: root.beginCreate() }
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: Style.space(2)
+                            Text { text: root.departuresService ? root.departuresService.capabilityLine : "Routing unavailable"; color: Color.foreground; opacity: 0.45; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                            Text { visible: root.departuresService && (root.departuresService.lastError !== "" || root.departuresService.providerMessage !== ""); text: root.departuresService ? (root.departuresService.lastError || root.departuresService.providerMessage) : ""; color: Color.urgent; font.family: Style.font.family; font.pixelSize: Style.font.caption; Layout.fillWidth: true; elide: Text.ElideRight }
+                        }
+                        Button { visible: root.departuresService && !root.departuresService.settings.networkEnabled; text: "ENABLE FREE ROUTING"; fontSize: Style.font.caption; onClicked: root.departuresService.updateSettings({ networkEnabled: true }) }
+                        Button { visible: root.upcoming.length > 0; text: "+  ADD DEPARTURE"; selected: true; focusable: true; onClicked: root.beginCreate() }
                     }
                 }
 
@@ -280,6 +360,7 @@ Panel {
                     DepartureEditor {
                         id: editor
                         width: parent.width
+                        departuresService: root.departuresService
                         onSaveRequested: function(draft) { root.saveDraft(draft) }
                         onCancelRequested: root.leaveEditor()
                     }

@@ -55,3 +55,12 @@ test("deletion prunes all notification state", () => {
   const sent = { [Notifications.keyFor(departure, "ready")]: times.getReadyTime }
   assert.deepEqual(Object.keys(Notifications.prune(sent, [])), [])
 })
+
+test("dynamic travel adjustment does not duplicate a sent boundary", () => {
+  const sent = Notifications.mark({}, { key: Notifications.keyFor(departure, "ready") }, times.getReadyTime)
+  const trafficChanged = { ...departure, routeTravelMinutes: 43 }
+  const changedTimes = Timing.derive(trafficChanged)
+  assert.equal(Notifications.dueEvents(trafficChanged, changedTimes.getReadyTime, sent, changedTimes).length, 0)
+  const atLeave = Notifications.dueEvents(trafficChanged, changedTimes.leaveTime, sent, changedTimes)
+  assert.deepEqual(Array.from(atLeave, event => event.kind), ["leave"])
+})
