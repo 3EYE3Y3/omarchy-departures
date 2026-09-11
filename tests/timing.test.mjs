@@ -96,6 +96,14 @@ test("sorts multiple departures and selects the next unexpired one", () => {
   assert.equal(Timing.nextDeparture([later, past, sooner], now).id, "sooner")
 })
 
+test("next action selects the earliest preparation boundary, not merely earliest arrival", () => {
+  const now = new Date(2026, 8, 11, 12, 0).getTime()
+  const earlierArrival = departure(now + 3 * 3600000, { id: "earlier", preparationMinutes: 10, autoTravelMinutes: 10 })
+  const actionableFirst = departure(now + 4 * 3600000, { id: "actionable", preparationMinutes: 120, autoTravelMinutes: 60 })
+  assert.equal(Timing.nextActionDeparture([earlierArrival, actionableFirst], now).id, "actionable")
+  assert.equal(Timing.snapshot([earlierArrival, actionableFirst], now).next.id, "actionable")
+})
+
 test("handles future dates and next-action guidance", () => {
   const now = new Date(2026, 8, 11, 10, 0).getTime()
   const tomorrow = departure(new Date(2026, 8, 12, 18, 30).getTime())
@@ -126,9 +134,9 @@ test("next action changes at get-ready and leave boundaries", () => {
   const event = new Date(2026, 8, 11, 18, 30).getTime()
   const dep = departure(event)
   const times = Timing.derive(dep)
-  assert.match(Timing.nextAction(dep, times.getReadyTime - 60000), /^Get ready in /)
-  assert.match(Timing.nextAction(dep, times.getReadyTime), /^Leave in /)
-  assert.equal(Timing.nextAction(dep, times.leaveTime), "Leave now")
+  assert.match(Timing.nextAction(dep, times.getReadyTime - 60000), /^Get ready for Morning meeting in /)
+  assert.match(Timing.nextAction(dep, times.getReadyTime), /^Leave for Morning meeting in /)
+  assert.equal(Timing.nextAction(dep, times.leaveTime), "Leave now for Morning meeting")
   assert.equal(Timing.nextAction(dep, times.targetArrivalTime), "You should already be on your way")
   assert.equal(Timing.nextAction(null, times.leaveTime), "No upcoming departures")
 })

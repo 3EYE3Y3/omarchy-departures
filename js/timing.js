@@ -129,7 +129,19 @@ function upcomingDepartures(departures, now) {
 }
 
 function nextDeparture(departures, now) {
+    return nextActionDeparture(departures, now)
+}
+
+function nextActionDeparture(departures, now) {
     var upcoming = upcomingDepartures(departures, now)
+    upcoming.sort(function(a, b) {
+        var first = derive(a)
+        var second = derive(b)
+        var firstAction = first.timingReliable ? first.getReadyTime : first.eventTime
+        var secondAction = second.timingReliable ? second.getReadyTime : second.eventTime
+        var delta = firstAction - secondAction
+        return delta !== 0 ? delta : Number(a.arrivalTime) - Number(b.arrivalTime)
+    })
     return upcoming.length ? upcoming[0] : null
 }
 
@@ -158,11 +170,13 @@ function compactCountdown(ms) {
 function nextAction(departure, now) {
     if (!departure) return "No upcoming departures"
     var times = derive(departure)
+    var title = String(departure.title || departure.destination || "departure")
+    if (title.length > 32) title = title.slice(0, 31) + "…"
     if (!times.timingReliable) return "Departure time needs attention"
     if (now >= times.targetArrivalTime) return "You should already be on your way"
-    if (now >= times.leaveTime) return "Leave now"
-    if (now >= times.getReadyTime) return "Leave in " + countdown(times.leaveTime - now)
-    if (times.getReadyTime - now <= DAY_MS) return "Get ready in " + countdown(times.getReadyTime - now)
+    if (now >= times.leaveTime) return "Leave now for " + title
+    if (now >= times.getReadyTime) return "Leave for " + title + " in " + countdown(times.leaveTime - now)
+    if (times.getReadyTime - now <= DAY_MS) return "Get ready for " + title + " in " + countdown(times.getReadyTime - now)
     return "Next departure " + dayLabel(times.eventTime, now).toLowerCase() + " at " + localTime(times.eventTime)
 }
 
@@ -189,7 +203,8 @@ function enrich(departure, now) {
 
 function snapshot(departures, now) {
     var upcoming = upcomingDepartures(departures, now).map(function(item) { return enrich(item, now) })
-    var next = upcoming.length ? upcoming[0] : null
+    var nextRecord = nextActionDeparture(departures, now)
+    var next = nextRecord ? enrich(nextRecord, now) : null
     return {
         now: now,
         upcoming: upcoming,

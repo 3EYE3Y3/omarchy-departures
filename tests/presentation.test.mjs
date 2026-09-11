@@ -41,3 +41,11 @@ test("arrival labels and timing sources use ordinary language", () => {
   assert.equal(Presentation.arrivalLabel(tomorrow, now), "Tomorrow · 07:30")
   assert.equal(Presentation.timingSource({ timingMode: "auto", autoTravelMinutes: 20, routeStatus: "live", routeTrafficAware: true }), "Live estimate")
 })
+
+test("compact board timing communicates freshness and fallback without provider noise", () => {
+  const now = new Date(2026, 8, 11, 12).getTime()
+  assert.equal(Presentation.compactTimingLine("auto", 24, "live", now - 3 * 60000, now, true), "Live · 24m · 3m ago")
+  assert.equal(Presentation.compactTimingLine("auto", 25, "fallback", now - 60000, now, false), "Automatic · saved 25m")
+  assert.equal(Presentation.compactTimingLine("manual", 25, "", 0, now, false), "Fixed · 25m")
+  assert.equal(Presentation.compactTimingLine("auto", -1, "fallback", 0, now, false), "ROUTE NEEDED")
+})

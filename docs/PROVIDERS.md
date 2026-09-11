@@ -14,7 +14,7 @@ Departures consumes normalized results. UI, timing, persistence, and notificatio
 
 Nominatim calls use `https://nominatim.openstreetmap.org/search`, identify Departures in `User-Agent`, never provide autocomplete, request one result, are serialized at least 1.1 seconds apart, and are cached as saved places. This follows the [Nominatim public usage policy](https://operations.osmfoundation.org/policies/nominatim/) and [search API](https://nominatim.org/release-docs/latest/api/Search/). OpenStreetMap attribution is shown through the provider identity in documentation and capability details.
 
-OSRM calls use the public project route endpoint for no-key driving estimates and follow the documented [OSRM route API](https://project-osrm.org/docs/). The hosted endpoint is a community demonstration service with no availability guarantee. Departures queries only upcoming departures, caches aggressively, and falls back immediately.
+OSRM calls use the public project route endpoint for no-key driving estimates and follow the documented [OSRM route API](https://project-osrm.org/docs/) and [demo-server usage policy](https://github.com/Project-OSRM/osrm-backend/wiki/Api-usage-policy). The hosted endpoint is a community demonstration service with no availability guarantee and prohibits excessive use. Departures therefore applies a five-minute per-departure floor, spaces all OSRM requests by at least two seconds, caches aggressively, and falls back immediately. OSRM is a current route estimate, not a traffic feed.
 
 ## Optional Mapbox traffic
 
@@ -24,20 +24,21 @@ Tokens are not written to state, logs, documentation output, or IPC state. A rej
 
 ## Refresh and cache algorithm
 
-Only Automatic departures among the next three are eligible. A newly created route may be fetched once; after that:
+Every upcoming Automatic departure is eligible. Creation, an Automatic save/edit, a switch from Fixed time, and a changed origin or destination request an immediate provider refresh rather than waiting for the schedule. Immediate requests still respect provider spacing and active failure backoff. After a successful or failed check, the central scheduler uses time until **leave**, not time until arrival:
 
-| Time until leave | Refresh no more often than |
-| --- | ---: |
-| More than 7 days | No refresh |
-| 1–7 days | 6 hours |
-| 6–24 hours | 3 hours |
-| 2–6 hours | 1 hour |
-| 30 minutes–2 hours | 15 minutes |
-| 10–30 minutes | 5 minutes |
-| Under 10 minutes | 2 minutes |
-| Leave time passed | Stop |
+| Time until leave | Adaptive interval | Public OSRM effective interval | Mapbox effective interval |
+| --- | ---: | ---: | ---: |
+| More than 12 hours | 3 hours | 3 hours | 3 hours |
+| 6–12 hours | 1 hour | 1 hour | 1 hour |
+| 2–6 hours | 30 minutes | 30 minutes | 30 minutes |
+| 30–120 minutes | 10 minutes | 10 minutes | 10 minutes |
+| 10–30 minutes | 4 minutes | 5 minutes | 4 minutes |
+| Under 10 minutes | 1 minute | 5 minutes | 1 minute |
+| Leave time passed | Stop | Stop | Stop |
 
-Routes are keyed by provider, mode, and coordinates rounded to five decimals. At most 100 persisted entries are retained. A failed request may use a cache entry up to seven days old. Retryable failures back off five minutes, rate limits fifteen minutes, invalid credentials one hour, and deterministic not-found failures one day.
+Mapbox's documented Directions API limit is much higher than this schedule, but Departures still uses a conservative one-minute per-departure floor and one-second global request spacing. Public OSRM never adopts the nominal one-minute near-departure cadence. A single scheduler scans departures and sleeps on the normal service tick; rows do not own timers or generate independent wakeups.
+
+Routes are keyed by provider, mode, and coordinates rounded to five decimals. At most 100 persisted entries are retained. A failed request may use a cache entry up to seven days old. Retryable failures back off five minutes, rate limits fifteen minutes, invalid credentials one hour, and deterministic no-route/not-found failures one day. `Refresh now` reports a temporary pause instead of bypassing these protections.
 
 ## Dynamic adjustment
 

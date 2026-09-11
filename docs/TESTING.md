@@ -1,6 +1,6 @@
 # Testing and acceptance
 
-Departures 0.3.0 was developed and accepted against Omarchy 4.0.3-1 and Quickshell 0.3.1 on 2026-09-11.
+Departures 0.3.1 was developed and accepted against Omarchy 4.0.3-1 and Quickshell 0.3.1 on 2026-09-11.
 
 ## Automated
 
@@ -11,22 +11,39 @@ Departures 0.3.0 was developed and accepted against Omarchy 4.0.3-1 and Quickshe
 - notification deduplication across reload and dynamic route-time changes
 - Nominatim, OSRM, Mapbox, location, and future-weather result normalization
 - malformed provider data, no results, no route, DNS, timeout, invalid credential, and rate-limit classification
-- route cache freshness/staleness, bounded size, coordinate keys, and progressive refresh cadence
+- route cache freshness/staleness, bounded size, coordinate keys, every leave-time cadence window, provider floors, stop-after-leave behavior, and failure backoff
 - immediate material increases, ignored small changes, and confirmed decreases
 - saved-place creation, matching, averaging, geocoding, observed route learning, and removal
 - built-in/learned bring kits, replacement, and reset
 - local natural-language parsing and missing-field reporting
 - schema-v1/v2-to-v3 state migration with preserved records, learned data, cache, settings, and notification keys
-- first-run, Add/editor, details, long-label, fallback-severity, and human-readable primary-panel UI contracts
+- first-run, Add/editor, details, long-label, fallback-severity, and human-readable primary-board UI contracts
+- all-upcoming board ordering, day grouping, row roles, expiry, missing timing, zero-op clock refresh, and one-row route reconciliation
+- one-shot hydration, preserved details scroll, immediate Automatic request paths, and one central no-per-row-timer scheduler
 - route-work gating in MANUAL mode and manual provider observations that cannot move timing or notification keys
 - keyless navigation URL generation and absent-credential capability behavior
 - permanent public-data privacy policy checks
 
-The v0.3.0 suite contains 93 tests and runs on Node.js 22.
+The v0.3.1 suite contains 110 tests and runs on Node.js 26.
 
 `scripts/quality` additionally runs the installed Omarchy manifest validator, QML lint, Bash syntax checks, ShellCheck when available, and Git whitespace checks.
 
 The installed Qt `qmllint` cannot statically infer the members of Omarchy's dynamic `Style.font` object, injected bar facade, or `Loader.item`, and Quickshell's metadata does not expose `QProcess::ExitStatus` to the linter. It reports those known `missing-property`/signal-metadata warnings while returning success. Live shell testing produced no Departures runtime warning. ShellCheck was not installed; `bash -n` passed for both scripts.
+
+## v0.3.1 stable-board acceptance
+
+- Stopped the shell, moved the user's state into an opaque checksum-protected backup, and ran every scenario against isolated fictional records only. No capture of the user's persisted state was made.
+- Opened an empty board and created five fictional departures across today and tomorrow. The service exposed all five rows simultaneously with chronological arrival order and the expected day-group inputs.
+- Opened a row/details path and returned to the board. The row count and reconciliation diagnostics were unchanged, and the board retained its model rather than being reconstructed.
+- Created Automatic and Fixed-time records. The Automatic create caused an immediate real OSRM request; a manual refresh caused a second provider request and advanced the freshness timestamp.
+- Confirmed a consistent material route decrease was accepted on its second observation, recalculated leave time immediately, and reported exactly one updated row with no insert, remove, or move.
+- Confirmed an unavailable Automatic route used its saved duration calmly. Then exercised an Automatic record with no usable duration; it remained on the board in the blocking route-needed state while all other rows remained intact.
+- Confirmed Fixed-time Retry queued no request and did not change duration, leave time, user revision, or timing revision. Fixed → Automatic caused an immediate provider request; Automatic → Fixed stopped route authority and preserved the selected fixed duration.
+- Added a disposable near-term fictional record and observed the next action transition from Get ready to Leave now; the bar followed the same next actionable departure. The record was then deleted.
+- Restarted the shell with the fictional state and verified all five records, timing modes, fixed duration, and missing-route state persisted. No new Departures QML/runtime error was present.
+- Restored the user's original state byte-for-byte with its original mode, relaunched the shell, verified the checksum remained identical after hydration, and removed the entire temporary acceptance directory.
+
+The live route refresh changed only the affected row (`updatedRows: 1`, `inserted: 0`, `removed: 0`, `moved: 0`). Automatic routing was observed to query the provider again, update freshness, accept a stabilized duration change, and recalculate leave time. Fixed timing remained insulated throughout.
 
 ## v0.3.0 effortless-UX acceptance
 

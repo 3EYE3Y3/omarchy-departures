@@ -12,9 +12,15 @@ import "js/kits.js" as Kits
 import "js/natural.js" as Natural
 import "js/location.js" as Location
 import "js/storage.js" as Storage
+import "js/board.js" as Board
 
 Item {
     id: service
+
+    ListModel {
+        id: departureBoardModel
+        dynamicRoles: true
+    }
 
     property var shell: null
     property var manifest: null
@@ -42,7 +48,14 @@ Item {
     property var networkQueue: []
     property var activeNetworkJob: null
     property double lastNominatimAt: 0
+    property var lastProviderRequestAt: ({})
     property var networkBackoff: ({})
+    property int routeRequestCount: 0
+    property double nextRouteRefreshAt: 0
+    property var lastBoardSync: ({ inserted: 0, removed: 0, moved: 0, updatedRows: 0, updatedProperties: 0 })
+    property var lastChangedBoardSync: ({ inserted: 0, removed: 0, moved: 0, updatedRows: 0, updatedProperties: 0 })
+    property alias boardModel: departureBoardModel
+    readonly property int boardCount: departureBoardModel.count
 
     readonly property string barText: snapshot ? snapshot.barText : "󰁕  No departures"
     readonly property var nextDeparture: snapshot ? snapshot.next : null
@@ -302,7 +315,7 @@ Item {
         }
         settings = normalizedSettings(merged)
         requestSave()
-        if (settings.networkEnabled) Qt.callLater(function() { service.prepareAllNetwork() })
+        if (settings.networkEnabled) Qt.callLater(function() { service.prepareAllNetwork(true) })
         else {
             networkQueue = []
             activeNetworkJob = null
@@ -326,7 +339,7 @@ Item {
         var result = Location.ephemeral(value, label, Date.now())
         if (!result.ok) return result
         currentLocation = result.value
-        Qt.callLater(function() { service.prepareAllNetwork() })
+        Qt.callLater(function() { service.prepareAllNetwork(true) })
         return result
     }
 
@@ -341,6 +354,10 @@ Item {
         var timestamp = Number(now)
         if (!isFinite(timestamp)) timestamp = Date.now()
         snapshot = Timing.snapshot(departures, timestamp)
+        var boardSync = Board.syncModel(departureBoardModel, Board.rows(snapshot.upcoming, timestamp))
+        lastBoardSync = boardSync
+        if (boardSync.inserted || boardSync.removed || boardSync.moved || boardSync.updatedRows)
+            lastChangedBoardSync = boardSync
         if (hydrated) {
             evaluateNotifications(timestamp)
             maybeRefreshRoutes(timestamp)
@@ -419,47 +436,49 @@ Item {
         if (!departure) return { ok: false, errors: ["Departure no longer exists"] }
         if (!Routing.isAutomaticTiming(departure)) return { ok: false, errors: ["Select Automatic travel time before retrying"] }
         if (!settings.networkEnabled) return { ok: false, errors: ["Turn on automatic routing before retrying"] }
-        var retained = {}
-        var marker = ":" + String(id) + ":"
-        for (var key in networkBackoff) if (String(key).indexOf(marker) === -1) retained[key] = networkBackoff[key]
-        networkBackoff = retained
-        discardQueuedNetworkFor(id)
         providerMessage = ""
-        prepareNetworkFor(id, true)
-        return { ok: true }
+        var queued = prepareNetworkFor(id, true)
+        return { ok: true, queued: queued, message: queued
+            ? "Refreshing route now…" : "Refresh is already running or temporarily paused" }
     }
 
     function prepareNetworkFor(id, immediate) {
         var departure = recordById(id)
-        if (!departure || !Routing.isAutomaticTiming(departure) || !settings.networkEnabled) return
+        if (!departure || !Routing.isAutomaticTiming(departure) || !settings.networkEnabled) return false
         var origin = resolvedCoordinates(departure, "origin")
         var destination = resolvedCoordinates(departure, "destination")
+        var queued = false
         if (!destination && departure.destination)
-            enqueueNetwork({ key: "geocode:destination:" + departure.id + ":" + departure.destination,
-                kind: "geocode", role: "destination", departureId: departure.id, query: departure.destination })
+            queued = enqueueNetwork({ key: "geocode:destination:" + departure.id + ":" + departure.destination,
+                kind: "geocode", role: "destination", departureId: departure.id, query: departure.destination }) || queued
         if (!origin && departure.origin && String(departure.origin).toLowerCase() !== "current location")
-            enqueueNetwork({ key: "geocode:origin:" + departure.id + ":" + departure.origin,
-                kind: "geocode", role: "origin", departureId: departure.id, query: departure.origin })
-        if (origin && destination) queueRoute(departure, origin, destination, immediate === true)
+            queued = enqueueNetwork({ key: "geocode:origin:" + departure.id + ":" + departure.origin,
+                kind: "geocode", role: "origin", departureId: departure.id, query: departure.origin }) || queued
+        if (origin && destination) queued = queueRoute(departure, origin, destination, immediate === true) || queued
+        return queued
     }
 
-    function prepareAllNetwork() {
-        var source = upcoming.slice(0, 3)
-        for (var i = 0; i < source.length; i++) prepareNetworkFor(source[i].id, true)
+    function prepareAllNetwork(immediate) {
+        var source = upcoming.slice()
+        var queued = false
+        for (var i = 0; i < source.length; i++)
+            queued = prepareNetworkFor(source[i].id, immediate === true) || queued
+        return queued
     }
 
     function maybeRefreshRoutes(now) {
-        if (!settings.networkEnabled || networkProcess.running) return
-        var source = upcoming.slice(0, 3)
+        if (!settings.networkEnabled) { nextRouteRefreshAt = 0; return }
+        var source = upcoming.slice()
+        var provider = mapboxToken ? "mapbox" : "osrm"
+        var nextWake = Infinity
         for (var i = 0; i < source.length; i++) {
             var departure = recordById(source[i].id)
             if (!departure || !Routing.isAutomaticTiming(departure)) continue
-            var times = Timing.derive(departure)
-            var interval = Routing.refreshInterval(times.leaveTime - now)
-            if (!isFinite(interval)) continue
-            if (!Number(departure.routeCheckedAt) || now - Number(departure.routeCheckedAt) >= interval)
-                prepareNetworkFor(departure.id, false)
+            var dueAt = Routing.nextRefreshAt(source[i], now, provider)
+            if (dueAt <= now) prepareNetworkFor(departure.id, false)
+            else if (dueAt < nextWake) nextWake = dueAt
         }
+        nextRouteRefreshAt = isFinite(nextWake) ? nextWake : 0
     }
 
     function queueRoute(departure, origin, destination, immediate) {
@@ -468,15 +487,15 @@ Item {
             : Providers.osrmRequest(origin, destination, departure.transportMode)
         if (!request) {
             if (departure.transportMode !== "drive" && !mapboxToken) providerMessage = "Walking/cycling routing needs optional Mapbox; using remembered time"
-            return
+            return false
         }
         var key = Routing.cacheKey(origin, destination, departure.transportMode, provider)
         var cached = Routing.cached(routeCache, key, Date.now(), false)
-        if (cached && (!departure.routeCheckedAt || immediate)) {
+        if (cached && !immediate) {
             applyRouteResult(departure.id, { ok: true, provider: cached.provider, value: cached.value }, Date.now(), true)
-            if (Number(cached.expiresAt) > Date.now()) return
+            if (Number(cached.expiresAt) > Date.now()) return true
         }
-        enqueueNetwork({ key: "route:" + departure.id + ":" + key, kind: "route", departureId: departure.id,
+        return enqueueNetwork({ key: "route:" + departure.id + ":" + key, kind: "route", departureId: departure.id,
             provider: provider, request: request, cacheKey: key })
     }
 
@@ -496,6 +515,22 @@ Item {
             }
             job.request = Providers.nominatimRequest(job.query, settings.countryCodes)
             lastNominatimAt = Date.now()
+        } else {
+            var providerGap = job.provider === "mapbox" ? 1000 : 2000
+            var lastRequest = Number(lastProviderRequestAt[job.provider] || 0)
+            var providerWait = Math.max(0, providerGap - (Date.now() - lastRequest))
+            if (providerWait > 0) {
+                queue.unshift(job)
+                networkQueue = queue
+                networkDelay.interval = Math.ceil(providerWait)
+                networkDelay.restart()
+                return
+            }
+            var requestTimes = {}
+            for (var providerName in lastProviderRequestAt) requestTimes[providerName] = lastProviderRequestAt[providerName]
+            requestTimes[job.provider] = Date.now()
+            lastProviderRequestAt = requestTimes
+            routeRequestCount += 1
         }
         activeNetworkJob = job
         networkProcess.command = ["curl", "--silent", "--show-error", "--fail-with-body", "--max-time", "8",
@@ -521,8 +556,7 @@ Item {
         for (var key in networkBackoff) backoff[key] = networkBackoff[key]
         if (result.ok) delete backoff[job.key]
         else {
-            var delay = result.error.code === "invalid_credentials" ? 3600000
-                : (result.error.code === "rate_limited" ? 900000 : (result.error.retryable ? 300000 : 86400000))
+            var delay = Routing.backoffInterval(result.error.code, result.error.retryable)
             backoff[job.key] = Date.now() + delay
         }
         networkBackoff = backoff
@@ -572,7 +606,7 @@ Item {
         var now = Date.now()
         if (result.ok) {
             var untilLeave = Timing.derive(departure).leaveTime - now
-            var ttl = Routing.refreshInterval(untilLeave)
+            var ttl = Routing.refreshInterval(untilLeave, job.provider)
             if (!isFinite(ttl)) ttl = 6 * 3600000
             routeCache = Routing.put(routeCache, job.cacheKey, Routing.cacheEntry(result, now, ttl), 100)
             var observed = result.value.typicalMinutes === null ? result.value.travelMinutes : result.value.typicalMinutes
@@ -670,7 +704,18 @@ Item {
         hydrated = true
         refresh(Date.now())
         if (migrated) requestSave()
-        Qt.callLater(function() { service.prepareAllNetwork() })
+    }
+
+    function routingDiagnostics() {
+        return {
+            routeRequests: routeRequestCount,
+            queuedJobs: networkQueue.length,
+            active: activeNetworkJob !== null,
+            nextRefreshAt: nextRouteRefreshAt,
+            boardRows: boardCount,
+            lastBoardSync: lastBoardSync,
+            lastChangedBoardSync: lastChangedBoardSync
+        }
     }
 
     function resultJson(result) {
@@ -698,6 +743,7 @@ Item {
         function update(payloadJson: string): string { return service.updateJson(payloadJson) }
         function remove(id: string): string { return JSON.stringify({ ok: service.deleteDeparture(id) }) }
         function retry(id: string): string { return service.resultJson(service.retryRoute(id)) }
+        function diagnostics(): string { return JSON.stringify(service.routingDiagnostics()) }
     }
 
     FileView {

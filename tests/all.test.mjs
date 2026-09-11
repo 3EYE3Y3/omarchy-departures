@@ -1,3 +1,4 @@
+import "./board.test.mjs"
 import "./domain.test.mjs"
 import "./manifest.test.mjs"
 import "./memory.test.mjs"

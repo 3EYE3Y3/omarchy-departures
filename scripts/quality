@@ -16,7 +16,7 @@ if [[ -n "$qml_lint" ]]; then
   }
   trap cleanup_import_root EXIT
   ln -s /usr/share/omarchy/shell "$import_root/qs"
-  "$qml_lint" -W 9999 -I "$import_root" BarWidget.qml DepartureCard.qml DepartureDetails.qml DepartureEditor.qml Panel.qml Service.qml
+  "$qml_lint" -W 9999 -I "$import_root" BarWidget.qml DepartureBoardRow.qml DepartureDetails.qml DepartureEditor.qml Panel.qml Service.qml
 else
   echo "SKIP qmllint (not installed)"
 fi

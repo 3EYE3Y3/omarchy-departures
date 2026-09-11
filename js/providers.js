@@ -1,6 +1,6 @@
 .pragma library
 
-var USER_AGENT = "Departures/0.3.0 (+https://github.com/3EYE3Y3/omarchy-departures)"
+var USER_AGENT = "Departures/0.3.1 (+https://github.com/3EYE3Y3/omarchy-departures)"
 
 function cleanText(value) {
     return String(value || "").replace(/^\s+|\s+$/g, "")

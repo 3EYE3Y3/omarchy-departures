@@ -22,12 +22,48 @@ test("route cache serves fresh and bounded stale entries", () => {
   assert.equal(Routing.cached(cache, "route", now + 8 * 86400000, true), null)
 })
 
-test("refresh cadence becomes more frequent near leave time", () => {
-  assert.equal(Routing.refreshInterval(8 * 86400000), Infinity)
-  assert.equal(Routing.refreshInterval(2 * 86400000), 6 * 3600000)
-  assert.equal(Routing.refreshInterval(60 * 60000), 15 * 60000)
-  assert.equal(Routing.refreshInterval(5 * 60000), 2 * 60000)
-  assert.equal(Routing.refreshInterval(-1), Infinity)
+test("Mapbox refresh cadence increases across every leave-time window", () => {
+  assert.equal(Routing.refreshInterval(13 * 3600000, "mapbox"), 3 * 3600000)
+  assert.equal(Routing.refreshInterval(12 * 3600000, "mapbox"), 60 * 60000)
+  assert.equal(Routing.refreshInterval(6 * 3600000, "mapbox"), 60 * 60000)
+  assert.equal(Routing.refreshInterval(8 * 3600000, "mapbox"), 60 * 60000)
+  assert.equal(Routing.refreshInterval(2 * 3600000, "mapbox"), 30 * 60000)
+  assert.equal(Routing.refreshInterval(4 * 3600000, "mapbox"), 30 * 60000)
+  assert.equal(Routing.refreshInterval(30 * 60000, "mapbox"), 10 * 60000)
+  assert.equal(Routing.refreshInterval(60 * 60000, "mapbox"), 10 * 60000)
+  assert.equal(Routing.refreshInterval(10 * 60000, "mapbox"), 4 * 60000)
+  assert.equal(Routing.refreshInterval(20 * 60000, "mapbox"), 4 * 60000)
+  assert.equal(Routing.refreshInterval(5 * 60000, "mapbox"), 60 * 1000)
+  assert.equal(Routing.refreshInterval(-1, "mapbox"), Infinity)
+})
+
+test("public OSRM has a five-minute per-departure floor", () => {
+  assert.equal(Routing.providerMinimumInterval("osrm"), 5 * 60000)
+  assert.equal(Routing.refreshInterval(13 * 3600000, "osrm"), 3 * 3600000)
+  assert.equal(Routing.refreshInterval(8 * 3600000, "osrm"), 60 * 60000)
+  assert.equal(Routing.refreshInterval(4 * 3600000, "osrm"), 30 * 60000)
+  assert.equal(Routing.refreshInterval(60 * 60000, "osrm"), 10 * 60000)
+  assert.equal(Routing.refreshInterval(20 * 60000, "osrm"), 5 * 60000)
+  assert.equal(Routing.refreshInterval(5 * 60000, "osrm"), 5 * 60000)
+})
+
+test("scheduler uses last check, is immediately due when unchecked, and stops after leave", () => {
+  const now = 1000000
+  const unchecked = { timingMode: "auto", leaveTime: now + 4 * 3600000, routeCheckedAt: 0 }
+  assert.equal(Routing.nextRefreshAt(unchecked, now, "mapbox"), now)
+  assert.equal(Routing.refreshDue(unchecked, now, "mapbox"), true)
+  const checked = { ...unchecked, routeCheckedAt: now }
+  assert.equal(Routing.nextRefreshAt(checked, now, "mapbox"), now + 30 * 60000)
+  assert.equal(Routing.refreshDue(checked, now + 29 * 60000, "mapbox"), false)
+  assert.equal(Routing.nextRefreshAt({ ...checked, leaveTime: now - 1 }, now, "mapbox"), Infinity)
+  assert.equal(Routing.nextRefreshAt({ ...checked, timingMode: "manual" }, now, "mapbox"), Infinity)
+})
+
+test("provider failures use deterministic safety backoff", () => {
+  assert.equal(Routing.backoffInterval("timeout", true), 5 * 60000)
+  assert.equal(Routing.backoffInterval("rate_limited", true), 15 * 60000)
+  assert.equal(Routing.backoffInterval("invalid_credentials", false), 60 * 60000)
+  assert.equal(Routing.backoffInterval("no_route", false), 24 * 3600000)
 })
 
 test("material increases apply immediately while small changes are ignored", () => {

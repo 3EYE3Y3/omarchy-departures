@@ -4,8 +4,6 @@ import QtQuick.Layouts
 import QtQuick.Controls as QQC
 import qs.Commons
 import qs.Ui
-import "js/timing.js" as Timing
-import "js/presentation.js" as Presentation
 
 Panel {
     id: root
@@ -20,10 +18,10 @@ Panel {
     property string editingId: ""
     property string selectedId: ""
     property string pendingDeleteId: ""
-    property bool quickOpen: false
-    property string quickError: ""
-    readonly property var upcoming: departuresService ? departuresService.upcoming : []
+    property double savedBoardContentY: 0
+    readonly property int boardCount: departuresService ? departuresService.boardCount : 0
     readonly property var allDepartures: departuresService ? departuresService.departures : []
+    readonly property bool hydrated: departuresService && departuresService.hydrated
     readonly property double currentNow: departuresService && departuresService.snapshot
         ? Number(departuresService.snapshot.now) : Date.now()
     readonly property var selectedDeparture: selectedRecord()
@@ -54,8 +52,13 @@ Panel {
         editor.openFor(departure)
     }
 
-    function beginDetails(departure) {
+    function beginDetailsById(id) {
+        var departure = null
+        var records = departuresService ? departuresService.departures : []
+        for (var i = 0; i < records.length; i++)
+            if (String(records[i].id) === String(id)) departure = records[i]
         if (!departure) return
+        savedBoardContentY = boardList.contentY
         selectedId = String(departure.id)
         view = "details"
         details.routingExpanded = false
@@ -68,7 +71,11 @@ Panel {
         selectedId = ""
         pendingDeleteId = ""
         editor.errorText = ""
-        keyCatcher.forceActiveFocus()
+        Qt.callLater(function() {
+            boardList.contentY = Math.max(0, Math.min(root.savedBoardContentY,
+                Math.max(0, boardList.contentHeight - boardList.height)))
+            keyCatcher.forceActiveFocus()
+        })
     }
 
     function saveDraft(draft) {
@@ -97,19 +104,6 @@ Panel {
         }
     }
 
-    function createNatural() {
-        if (!departuresService) return
-        var result = departuresService.saveNatural(quickField.text)
-        if (!result.ok) {
-            quickError = result.errors ? result.errors.join(" · ") : "Add a destination, date, and time"
-            return
-        }
-        quickField.text = ""
-        quickError = ""
-        quickOpen = false
-        keyCatcher.forceActiveFocus()
-    }
-
     Timer {
         id: deleteReset
         interval: 4000
@@ -126,8 +120,8 @@ Panel {
         bar: root.bar
         open: root.opened
         focusTarget: keyCatcher
-        contentWidth: fittedContentWidth(Style.space(620))
-        contentHeight: fittedContentHeight(Math.min(Style.space(760), content.implicitHeight))
+        contentWidth: fittedContentWidth(Style.space(720))
+        contentHeight: fittedContentHeight(Math.min(Style.space(780), content.implicitHeight))
 
         PanelKeyCatcher {
             id: keyCatcher
@@ -152,7 +146,7 @@ Panel {
                     id: board
                     visible: root.view === "board"
                     width: parent.width
-                    spacing: Style.space(12)
+                    spacing: Style.space(10)
 
                     RowLayout {
                         Layout.fillWidth: true
@@ -162,61 +156,37 @@ Panel {
                             font.family: Style.font.family
                             font.pixelSize: Style.font.title
                             font.bold: true
-                            font.letterSpacing: 0.6
+                            font.letterSpacing: 0.8
                             Layout.fillWidth: true
                         }
-                        Button {
-                            visible: root.upcoming.length > 0
-                            text: root.quickOpen ? "CLOSE QUICK ADD" : "QUICK ADD"
-                            focusable: true
-                            onClicked: {
-                                root.quickOpen = !root.quickOpen
-                                if (root.quickOpen) Qt.callLater(function() { quickField.forceActiveFocus() })
-                            }
+                        Text {
+                            text: new Date(root.currentNow).toLocaleDateString(Qt.locale(), "ddd dd MMM").toUpperCase()
+                            color: Color.foreground
+                            opacity: 0.54
+                            font.family: "monospace"
+                            font.pixelSize: Style.font.caption
                         }
                     }
 
+                    Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Color.foreground; opacity: 0.18 }
+
                     Text {
-                        Layout.fillWidth: true
-                        text: "Know when to get ready and when to leave."
+                        visible: !root.hydrated
+                        text: "Loading departures…"
                         color: Color.foreground
                         opacity: 0.58
                         font.family: Style.font.family
-                        font.pixelSize: Style.font.bodySmall
-                    }
-
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        visible: root.quickOpen && root.upcoming.length > 0
-                        spacing: Style.space(5)
-                        RowLayout {
-                            Layout.fillWidth: true
-                            TextField {
-                                id: quickField
-                                Layout.fillWidth: true
-                                placeholderText: "Morning meeting tomorrow at 9 at Central Office"
-                                maximumLength: 240
-                                onAccepted: root.createNatural()
-                            }
-                            Button { text: "CREATE"; selected: true; focusable: true; onClicked: root.createNatural() }
-                        }
-                        Text {
-                            visible: root.quickError !== ""
-                            Layout.fillWidth: true
-                            text: root.quickError
-                            color: Color.foreground
-                            opacity: 0.72
-                            font.family: Style.font.family
-                            font.pixelSize: Style.font.caption
-                            wrapMode: Text.WordWrap
-                        }
-                    }
-
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        visible: root.upcoming.length === 0
+                        font.pixelSize: Style.font.body
+                        Layout.alignment: Qt.AlignHCenter
                         Layout.topMargin: Style.space(32)
                         Layout.bottomMargin: Style.space(32)
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        visible: root.hydrated && root.boardCount === 0
+                        Layout.topMargin: Style.space(28)
+                        Layout.bottomMargin: Style.space(28)
                         spacing: Style.space(12)
 
                         Text {
@@ -229,9 +199,8 @@ Panel {
                         }
                         Text {
                             text: root.allDepartures.length === 0
-                                ? "Add somewhere you need to be.\nDepartures will work backwards from your arrival time."
-                                : "Your previous departures have passed.\nAdd the next place you need to be."
-                            horizontalAlignment: Text.AlignHCenter
+                                ? "Know when to get ready and when to leave."
+                                : "Your previous departures have passed."
                             color: Color.foreground
                             opacity: 0.58
                             font.family: Style.font.family
@@ -247,75 +216,66 @@ Panel {
                         }
                     }
 
-                    DepartureCard {
-                        id: primaryCard
-                        visible: root.upcoming.length > 0
+                    RowLayout {
+                        visible: root.boardCount > 0
                         Layout.fillWidth: true
-                        departure: root.upcoming.length > 0 ? root.upcoming[0] : null
-                        now: root.currentNow
-                        onDetailsRequested: root.beginDetails(primaryCard.departure)
-                        onAddRequested: root.beginCreate()
+                        Layout.leftMargin: Style.space(8)
+                        Layout.rightMargin: Style.space(8)
+                        spacing: Style.space(12)
+                        Text { Layout.preferredWidth: Style.space(64); text: "ARRIVE"; color: Color.foreground; opacity: 0.42; font.family: "monospace"; font.pixelSize: Style.font.caption }
+                        Text { Layout.fillWidth: true; text: "DESTINATION"; color: Color.foreground; opacity: 0.42; font.family: "monospace"; font.pixelSize: Style.font.caption }
+                        Text { Layout.preferredWidth: Style.space(92); text: "LEAVE"; color: Color.accent; opacity: 0.72; font.family: "monospace"; font.pixelSize: Style.font.caption; horizontalAlignment: Text.AlignHCenter }
+                        Text { Layout.preferredWidth: Style.space(106); text: "STATUS"; color: Color.foreground; opacity: 0.42; font.family: "monospace"; font.pixelSize: Style.font.caption; horizontalAlignment: Text.AlignRight }
                     }
 
-                    ColumnLayout {
+                    ListView {
+                        id: boardList
+                        visible: root.boardCount > 0
                         Layout.fillWidth: true
-                        visible: root.upcoming.length > 1
-                        spacing: Style.space(6)
-
-                        Text {
-                            text: "LATER"
-                            color: Color.foreground
-                            opacity: 0.45
-                            font.family: Style.font.family
-                            font.pixelSize: Style.font.caption
-                            font.bold: true
-                            font.letterSpacing: 1
+                        Layout.preferredHeight: Math.min(contentHeight, Style.space(490))
+                        implicitHeight: Layout.preferredHeight
+                        clip: true
+                        boundsBehavior: Flickable.StopAtBounds
+                        reuseItems: true
+                        cacheBuffer: Style.space(160)
+                        model: root.departuresService ? root.departuresService.boardModel : null
+                        delegate: DepartureBoardRow {
+                            width: ListView.view.width
+                            now: root.currentNow
+                            onActivated: function(departureId) { root.beginDetailsById(departureId) }
                         }
+                    }
 
-                        Repeater {
-                            model: root.upcoming.length > 1 ? root.upcoming.slice(1) : []
-                            delegate: Rectangle {
-                                id: laterRow
-                                required property var modelData
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: laterContent.implicitHeight + Style.space(18)
-                                radius: Math.max(0, Style.cornerRadius)
-                                color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.035)
+                    Rectangle {
+                        visible: root.boardCount > 0
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: nextContent.implicitHeight + Style.space(18)
+                        color: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.07)
+                        radius: Math.max(0, Style.cornerRadius)
 
-                                RowLayout {
-                                    id: laterContent
-                                    anchors.fill: parent
-                                    anchors.margins: Style.space(9)
-                                    spacing: Style.space(10)
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: 1
-                                        Text {
-                                            Layout.fillWidth: true
-                                            text: String(laterRow.modelData.destination)
-                                            color: Color.foreground
-                                            font.family: Style.font.family
-                                            font.pixelSize: Style.font.body
-                                            font.bold: true
-                                            elide: Text.ElideRight
-                                        }
-                                        Text {
-                                            Layout.fillWidth: true
-                                            text: Presentation.arrivalLabel(laterRow.modelData.arrivalTime, root.currentNow)
-                                                + (Presentation.hasUsableTiming(laterRow.modelData)
-                                                    ? "  ·  Leave " + Timing.localTime(laterRow.modelData.leaveTime)
-                                                    : "  ·  Check timing")
-                                                + "  ·  " + Presentation.travelLine(laterRow.modelData)
-                                            color: Color.foreground
-                                            opacity: 0.55
-                                            font.family: Style.font.family
-                                            font.pixelSize: Style.font.caption
-                                            elide: Text.ElideRight
-                                        }
-                                    }
-                                    Button { text: "DETAILS"; focusable: true; onClicked: root.beginDetails(laterRow.modelData) }
-                                }
+                        RowLayout {
+                            id: nextContent
+                            anchors.fill: parent
+                            anchors.margins: Style.space(9)
+                            spacing: Style.space(12)
+                            Text {
+                                text: "NEXT"
+                                color: Color.foreground
+                                opacity: 0.46
+                                font.family: "monospace"
+                                font.pixelSize: Style.font.caption
+                                font.bold: true
                             }
+                            Text {
+                                Layout.fillWidth: true
+                                text: root.departuresService ? root.departuresService.nextAction.toUpperCase() : ""
+                                color: Color.accent
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.body
+                                font.bold: true
+                                wrapMode: Text.WordWrap
+                            }
+                            Button { text: "+  ADD"; selected: true; focusable: true; onClicked: root.beginCreate() }
                         }
                     }
                 }
@@ -344,6 +304,7 @@ Panel {
                         width: parent.width
                         departure: root.selectedDeparture
                         departuresService: root.departuresService
+                        now: root.currentNow
                         onBackRequested: root.leaveSubview()
                         onEditRequested: function(departure) { root.beginEdit(departure) }
                         onDeleteRequested: function(departure) { root.requestDelete(departure) }
