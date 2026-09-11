@@ -1,12 +1,12 @@
 # Testing and acceptance
 
-Departures 0.2.0 was developed and accepted against Omarchy 4.0.3-1 and Quickshell 0.3.1 on 2026-09-11 in a local test timezone.
+Departures 0.2.x was developed and accepted against Omarchy 4.0.3-1 and Quickshell 0.3.1 on 2026-09-11.
 
 ## Automated
 
 `npm test` runs deterministic tests with no live third-party requests. Coverage includes:
 
-- legacy and arrival-first timing, zero durations, sorting, status, future dates, and midnight
+- explicit AUTO/MANUAL authority, mode switching, value preservation, arrival-first timing, zero durations, sorting, status, future dates, and midnight
 - domain validation, CRUD, recalculation, v0.1 record restoration, and notification revision behavior
 - notification deduplication across reload and dynamic route-time changes
 - Nominatim, OSRM, Mapbox, location, and future-weather result normalization
@@ -16,10 +16,12 @@ Departures 0.2.0 was developed and accepted against Omarchy 4.0.3-1 and Quickshe
 - saved-place creation, matching, averaging, geocoding, observed route learning, and removal
 - built-in/learned bring kits, replacement, and reset
 - local natural-language parsing and missing-field reporting
-- schema-v1-to-v2 state-envelope migration
+- schema-v1/v2-to-v3 state migration with preserved records, learned data, cache, settings, and notification keys
+- Add/editor UI contracts and route-work gating in MANUAL mode
 - keyless navigation URL generation and absent-credential capability behavior
+- permanent public-data privacy policy checks
 
-The final suite contains 61 tests. It passed locally and in GitHub Actions on Node.js 22.
+The v0.2.1 suite contains 78 tests and runs on Node.js 22.
 
 `scripts/quality` additionally runs the installed Omarchy manifest validator, QML lint, Bash syntax checks, ShellCheck when available, and Git whitespace checks.
 
@@ -29,10 +31,10 @@ The installed Qt `qmllint` cannot statically infer the members of Omarchy's dyna
 
 - Updated through `omarchy plugin update`, restarted only the Omarchy shell, and confirmed plugin/service IPC availability.
 - Migrated the existing empty schema-v1 state to schema v2; confirmed the state file remained mode `0600`.
-- Created `ACPT Work tomorrow at 8am at ACPT Test Office` through the natural CLI. Parsing selected tomorrow 08:00 and automatically attached the built-in Work kit.
+- Created a fictional `Morning Meeting` at `Central Office` through the natural CLI and confirmed the expected built-in kit behavior.
 - Confirmed implicit place creation and learning of travel, safety, preparation, parking, walking, kit, and preferred-origin fields.
 - Edited parking/walking values and created another departure for the same destination; remembered averaged defaults and kit were applied.
-- Enabled free routing explicitly with Australian geocoding scope. Nominatim resolved Example Clinic; OSRM returned a 25-minute/22.9 km route from the disposable test origin.
+- Enabled free routing explicitly against isolated fictional acceptance state and confirmed normalized geocoding and routing responses without documenting private locations.
 - Confirmed a material 20→25 minute increase moved the leave time earlier and displayed its cause while preserving the user-edit revision.
 - Created another route for the same coordinate pair and confirmed the persisted cache was reused without another geocode.
 - Submitted an unresolvable destination and confirmed the departure retained manual timing while the service, bar, and panel remained operational.
@@ -41,6 +43,18 @@ The installed Qt `qmllint` cannot statically infer the members of Omarchy's dyna
 - Created a 90-second notification fixture. Exactly one GET READY and one LEAVE NOW notification fired; both keys were saved before delivery and the count remained 2 after shell restart.
 - Checked a bring item through live IPC and confirmed it persisted across another shell restart without changing notification keys.
 - Confirmed service operation with the panel closed, bar updates, network-disabled operation, and provider recovery through subsequent valid requests.
-- Removed only uniquely identified acceptance departures, places, learned kit, route cache, and two Departures notification files. A separately created real Work place/cache was preserved.
+- Removed only the isolated fictional acceptance state and notification artifacts, then restored the user's original state byte-for-byte.
 
-Temporary captures remained under `/tmp` only and were not committed because they contain desktop content.
+Temporary captures remain outside the repository and are removed after review. They are never made from the user's persisted state.
+
+## v0.2.1 corrective acceptance
+
+- Installed the candidate into the existing git-managed user plugin and restarted only the Omarchy shell.
+- Backed up the user's state opaquely, stopped the shell, and ran acceptance against isolated schema-v2 fictional state. The migration produced schema v3, retained the departure, place, and notification key, mapped legacy travel/route durations to manual/automatic values, removed legacy fields, and kept mode `0600`.
+- Invoked the panel's compose entry point and loaded the new editor without a Departures runtime error. Escape/Cancel left the departure count unchanged. The primary `+ ADD` binding and editor reset path are also covered by the UI contract test.
+- Created fictional AUTO and MANUAL departures. Both appeared immediately in durable state and the derived snapshot; the bar continued to identify the earliest fictional departure.
+- Confirmed MANUAL used its entered duration, queued no route work, retained its leave time and revision during refresh opportunities, and preserved the cached automatic value.
+- Exercised AUTO → MANUAL, changed the manual duration, then exercised MANUAL → AUTO. Automatic authority resumed and the changed manual value remained available.
+- Restarted the shell and confirmed both modes and both values persisted. Edit updated the derived preview; Delete removed only the selected acceptance records.
+- Restored the user's original state byte-for-byte and verified its checksum before the final restart. The installed v0.2.1 service then migrated the real schema-v2 envelope to schema v3 while preserving all departure IDs, places, and notification keys.
+- Retained no screenshot, demo state, backup, or acceptance log. The final shell reported no Departures runtime error.

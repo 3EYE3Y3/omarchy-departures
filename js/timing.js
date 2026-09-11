@@ -4,6 +4,7 @@ var MINUTE_MS = 60000
 var DAY_MS = 86400000
 
 function finiteNumber(value, fallback) {
+    if (value === null || value === undefined || value === "") return fallback
     var number = Number(value)
     return isFinite(number) ? number : fallback
 }
@@ -13,9 +14,19 @@ function minutes(value) {
 }
 
 function effectiveTravelMinutes(departure) {
-    var routed = finiteNumber(departure && departure.routeTravelMinutes, NaN)
-    return isFinite(routed) && routed >= 0 ? Math.round(routed)
-        : Math.max(0, Math.round(finiteNumber(departure && departure.travelMinutes, 0)))
+    var mode = String(departure && departure.timingMode || "auto").toLowerCase()
+    if (mode === "manual")
+        return Math.max(0, Math.round(finiteNumber(departure && departure.manualTravelMinutes, 0)))
+    var automatic = finiteNumber(departure && departure.autoTravelMinutes, NaN)
+    if (!isFinite(automatic)) automatic = finiteNumber(departure && departure.routeTravelMinutes, NaN)
+    if (!isFinite(automatic)) automatic = finiteNumber(departure && departure.travelMinutes, NaN)
+    if (!isFinite(automatic)) automatic = finiteNumber(departure && departure.manualTravelMinutes, 0)
+    return Math.max(0, Math.round(automatic))
+}
+
+function manualTravelMinutesForSwitch(departure) {
+    var preserved = finiteNumber(departure && departure.manualTravelMinutes, NaN)
+    return isFinite(preserved) && preserved >= 0 ? Math.round(preserved) : effectiveTravelMinutes(departure)
 }
 
 function derive(departure) {

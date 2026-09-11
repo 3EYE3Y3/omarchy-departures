@@ -7,31 +7,31 @@ const Kits = loadQmlJs(new URL("../js/kits.js", import.meta.url))
 const Location = loadQmlJs(new URL("../js/location.js", import.meta.url))
 
 test("saved places are learned implicitly and matched case-insensitively", () => {
-  const places = Places.learn([], { destination: "Example Clinic", travelMinutes: 30, arrivalBufferMinutes: 10, parkingMinutes: 5, walkingMinutes: 4, preparationMinutes: 20 }, 1)
+  const places = Places.learn([], { destination: "City Dental Clinic", manualTravelMinutes: 30, arrivalBufferMinutes: 10, parkingMinutes: 5, walkingMinutes: 4, preparationMinutes: 20 }, 1)
   assert.equal(places.length, 1)
-  assert.equal(Places.find(places, "example clinic").normalTravelMinutes, 30)
+  assert.equal(Places.find(places, "city dental clinic").normalTravelMinutes, 30)
 })
 
 test("saved place learning smooths ordinary repeated values", () => {
-  let places = Places.learn([], { destination: "Work", travelMinutes: 30, arrivalBufferMinutes: 10, parkingMinutes: 4, walkingMinutes: 3, preparationMinutes: 20 }, 1)
-  places = Places.learn(places, { destination: "Work", travelMinutes: 40, arrivalBufferMinutes: 12, parkingMinutes: 6, walkingMinutes: 5, preparationMinutes: 30 }, 2)
-  assert.equal(Places.find(places, "Work").normalTravelMinutes, 35)
-  assert.equal(Places.find(places, "Work").samples, 2)
+  let places = Places.learn([], { destination: "Central Office", manualTravelMinutes: 30, arrivalBufferMinutes: 10, parkingMinutes: 4, walkingMinutes: 3, preparationMinutes: 20 }, 1)
+  places = Places.learn(places, { destination: "Central Office", manualTravelMinutes: 40, arrivalBufferMinutes: 12, parkingMinutes: 6, walkingMinutes: 5, preparationMinutes: 30 }, 2)
+  assert.equal(Places.find(places, "Central Office").normalTravelMinutes, 35)
+  assert.equal(Places.find(places, "Central Office").samples, 2)
 })
 
 test("geocoding updates a place without duplicating it", () => {
-  let places = Places.learn([], { destination: "Work", travelMinutes: 30 }, 1)
-  places = Places.withGeocode(places, "Work", { coordinates: { latitude: -32, longitude: 115 }, label: "Work, Example City" }, 2)
+  let places = Places.learn([], { destination: "Central Office", manualTravelMinutes: 30 }, 1)
+  places = Places.withGeocode(places, "Central Office", { coordinates: { latitude: 10, longitude: 20 }, label: "123 Example Street" }, 2)
   assert.equal(places.length, 1)
-  assert.equal(Places.find(places, "Work").coordinates.latitude, -32)
+  assert.equal(Places.find(places, "Central Office").coordinates.latitude, 10)
 })
 
 test("observed routes refine a remembered normal duration", () => {
-  let places = Places.learn([], { destination: "Work", travelMinutes: 30 }, 1)
-  places = Places.observeRoute(places, "Work", 40, 2)
-  places = Places.observeRoute(places, "Work", 42, 3)
-  assert.equal(Places.find(places, "Work").normalTravelMinutes, 41)
-  assert.equal(Places.find(places, "Work").routeSamples, 2)
+  let places = Places.learn([], { destination: "Central Office", manualTravelMinutes: 30 }, 1)
+  places = Places.observeRoute(places, "Central Office", 40, 2)
+  places = Places.observeRoute(places, "Central Office", 42, 3)
+  assert.equal(Places.find(places, "Central Office").normalTravelMinutes, 41)
+  assert.equal(Places.find(places, "Central Office").routeSamples, 2)
 })
 
 test("built-in bring kits need no setup and learned kits override them", () => {
@@ -47,8 +47,8 @@ test("custom activity kits can be reset", () => {
 })
 
 test("ephemeral current location validates coordinates and stores no history", () => {
-  const result = Location.ephemeral("10.05,20.75", "Current", 10)
+  const result = Location.ephemeral("10.5,20.5", "Current", 10)
   assert.equal(result.ok, true)
-  assert.deepEqual({ ...result.value.coordinates }, { latitude: 10.05, longitude: 20.75 })
+  assert.deepEqual({ ...result.value.coordinates }, { latitude: 10.5, longitude: 20.5 })
   assert.equal(Location.ephemeral("999,1", "", 10).ok, false)
 })

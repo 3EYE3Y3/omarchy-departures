@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.1 — 2026-09-11
+
+- Add an explicit mutually exclusive AUTO/MANUAL timing mode with separate persisted durations.
+- Suspend and ignore provider timing work for MANUAL departures while retaining AUTO routing hysteresis and fallback.
+- Migrate schema-v2 state to schema v3 without losing departures, learned data, route cache, settings, or notification keys.
+- Fix the prominent Add button so it opens a fresh validated departure editor instead of submitting an empty quick-create.
+- Add compact timing-mode controls, clear timing authority labels, and live derived previews.
+- Establish a permanent fictional-data requirement for screenshots, demos, documentation, release assets, and public fixtures.
+
 ## 0.2.0 — 2026-09-11
 
 - Add autonomous natural-language creation with remembered logistics defaults.

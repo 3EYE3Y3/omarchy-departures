@@ -16,6 +16,12 @@ function coordinates(value) {
     return { latitude: latitude, longitude: longitude }
 }
 
+function optionalNumber(value) {
+    if (value === null || value === undefined || value === "") return NaN
+    var number = Number(value)
+    return isFinite(number) ? number : NaN
+}
+
 function idFor(value) {
     var text = key(value)
     var hash = 5381
@@ -101,8 +107,10 @@ function learn(places, departure, now) {
     if (!departure || !clean(departure.destination, 160)) return Array.isArray(places) ? places.slice() : []
     var existing = find(places, departure.destinationPlaceId || departure.destination)
     var samples = existing ? Number(existing.samples || 0) : 0
-    var normal = Number(departure.routeTypicalMinutes)
-    if (!isFinite(normal)) normal = Number(departure.travelMinutes)
+    var normal = optionalNumber(departure.routeTypicalMinutes)
+    if (!isFinite(normal)) normal = optionalNumber(departure.manualTravelMinutes)
+    if (!isFinite(normal)) normal = optionalNumber(departure.autoTravelMinutes)
+    if (!isFinite(normal)) normal = optionalNumber(departure.travelMinutes)
     var learned = {
         id: existing ? existing.id : idFor(departure.destination),
         name: existing ? existing.name : clean(departure.destination, 80),

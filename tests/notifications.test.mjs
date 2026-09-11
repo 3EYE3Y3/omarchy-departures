@@ -9,9 +9,11 @@ const eventTime = new Date(2026, 8, 11, 18, 30).getTime()
 const departure = {
   id: "dep-1",
   revision: 1,
-  title: "Dinner",
+  title: "Morning meeting",
   arrivalTime: eventTime,
-  travelMinutes: 20,
+  timingMode: "auto",
+  manualTravelMinutes: 20,
+  autoTravelMinutes: 20,
   arrivalBufferMinutes: 10,
   preparationMinutes: 30,
 }
@@ -58,9 +60,20 @@ test("deletion prunes all notification state", () => {
 
 test("dynamic travel adjustment does not duplicate a sent boundary", () => {
   const sent = Notifications.mark({}, { key: Notifications.keyFor(departure, "ready") }, times.getReadyTime)
-  const trafficChanged = { ...departure, routeTravelMinutes: 43 }
+  const trafficChanged = { ...departure, autoTravelMinutes: 43 }
   const changedTimes = Timing.derive(trafficChanged)
   assert.equal(Notifications.dueEvents(trafficChanged, changedTimes.getReadyTime, sent, changedTimes).length, 0)
   const atLeave = Notifications.dueEvents(trafficChanged, changedTimes.leaveTime, sent, changedTimes)
   assert.deepEqual(Array.from(atLeave, event => event.kind), ["leave"])
+})
+
+test("manual provider observations do not change notification timing or revision keys", () => {
+  const manual = { ...departure, timingMode: "manual", manualTravelMinutes: 25, autoTravelMinutes: 20 }
+  const before = Timing.derive(manual)
+  const providerObserved = { ...manual, autoTravelMinutes: 50 }
+  const after = Timing.derive(providerObserved)
+  assert.equal(after.leaveTime, before.leaveTime)
+  assert.equal(Notifications.keyFor(providerObserved, "ready"), Notifications.keyFor(manual, "ready"))
+  const sent = Notifications.mark({}, { key: Notifications.keyFor(manual, "ready") }, before.getReadyTime)
+  assert.equal(Notifications.dueEvents(providerObserved, after.getReadyTime, sent, after).length, 0)
 })

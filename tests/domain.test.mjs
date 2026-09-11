@@ -7,9 +7,11 @@ const Domain = loadQmlJs(new URL("../js/domain.js", import.meta.url))
 const now = new Date(2026, 8, 11, 12).getTime()
 const input = {
   title: "School pickup",
-  destination: "School",
+  destination: "Example Primary School",
   arrivalTime: now + 3600000,
-  travelMinutes: 15,
+  timingMode: "auto",
+  manualTravelMinutes: 15,
+  autoTravelMinutes: 15,
   arrivalBufferMinutes: 5,
   preparationMinutes: 20,
   transportMode: "drive",
@@ -23,6 +25,7 @@ test("creates, normalizes, and deduplicates a departure", () => {
   assert.equal(result.ok, true)
   assert.equal(result.value.id, "dep-1")
   assert.equal(result.value.revision, 1)
+  assert.equal(result.value.timingMode, "auto")
   assert.deepEqual(Array.from(result.value.reminders), ["Keys", "Water"])
 })
 
@@ -30,17 +33,39 @@ test("rejects invalid and past records", () => {
   assert.equal(Domain.create({ ...input, title: "" }, now, "bad").ok, false)
   assert.equal(Domain.create({ ...input, destination: "" }, now, "bad").ok, false)
   assert.equal(Domain.create({ ...input, arrivalTime: now - 1 }, now, "bad").ok, false)
-  assert.equal(Domain.create({ ...input, travelMinutes: -1 }, now, "bad").ok, false)
+  assert.equal(Domain.create({ ...input, autoTravelMinutes: -1 }, now, "bad").ok, false)
 })
 
 test("editing recalculates data and advances notification revision", () => {
   const original = Domain.create(input, now, "dep-1").value
-  const changed = Domain.edit(original, { ...input, arrivalTime: input.arrivalTime + 1800000, travelMinutes: 30 }, now + 1000)
+  const changed = Domain.edit(original, { ...input, arrivalTime: input.arrivalTime + 1800000, autoTravelMinutes: 30 }, now + 1000)
   assert.equal(changed.ok, true)
   assert.equal(changed.value.arrivalTime, input.arrivalTime + 1800000)
-  assert.equal(changed.value.travelMinutes, 30)
+  assert.equal(changed.value.autoTravelMinutes, 30)
   assert.equal(changed.value.revision, 2)
   assert.equal(changed.value.createdAt, original.createdAt)
+})
+
+test("defaults new departures to exactly one automatic timing mode", () => {
+  const result = Domain.create({ ...input, timingMode: undefined, manualTravelMinutes: undefined }, now, "default-mode")
+  assert.equal(result.ok, true)
+  assert.equal(result.value.timingMode, "auto")
+  assert.equal(result.value.manualTravelMinutes, null)
+  assert.equal(result.value.autoTravelMinutes, 15)
+  assert.equal(Object.hasOwn(result.value, "manualTiming"), false)
+  assert.equal(Object.hasOwn(result.value, "automaticTiming"), false)
+})
+
+test("switching modes preserves separate automatic and manual values", () => {
+  const automatic = Domain.create({ ...input, manualTravelMinutes: 19, autoTravelMinutes: 27 }, now, "switch")
+  const manual = Domain.edit(automatic.value, { ...input, timingMode: "manual", manualTravelMinutes: 19, autoTravelMinutes: 27 }, now + 1)
+  assert.equal(manual.value.timingMode, "manual")
+  assert.equal(manual.value.manualTravelMinutes, 19)
+  assert.equal(manual.value.autoTravelMinutes, 27)
+  const restoredAutomatic = Domain.edit(manual.value, { ...input, timingMode: "auto", manualTravelMinutes: 19, autoTravelMinutes: 27 }, now + 2)
+  assert.equal(restoredAutomatic.value.timingMode, "auto")
+  assert.equal(restoredAutomatic.value.manualTravelMinutes, 19)
+  assert.equal(restoredAutomatic.value.autoTravelMinutes, 27)
 })
 
 test("upsert sorts records and deletion removes only the target", () => {
@@ -58,7 +83,10 @@ test("restores expired records without treating them as invalid", () => {
 })
 
 test("restores a v0.1 record with zero-valued v0.2 logistics defaults", () => {
-  const legacy = Domain.create(input, now, "legacy").value
+  const legacy = { ...Domain.create(input, now, "legacy").value, travelMinutes: 15 }
+  delete legacy.timingMode
+  delete legacy.manualTravelMinutes
+  delete legacy.autoTravelMinutes
   delete legacy.parkingMinutes
   delete legacy.walkingMinutes
   delete legacy.origin
@@ -67,4 +95,7 @@ test("restores a v0.1 record with zero-valued v0.2 logistics defaults", () => {
   assert.equal(restored.parkingMinutes, 0)
   assert.equal(restored.walkingMinutes, 0)
   assert.equal(restored.origin, "")
+  assert.equal(restored.timingMode, "auto")
+  assert.equal(restored.manualTravelMinutes, 15)
+  assert.equal(restored.autoTravelMinutes, 15)
 })

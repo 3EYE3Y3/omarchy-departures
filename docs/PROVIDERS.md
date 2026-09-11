@@ -20,11 +20,11 @@ OSRM calls use the public project route endpoint for no-key driving estimates an
 
 Mapbox is selected automatically only when networking is enabled and `MAPBOX_ACCESS_TOKEN` or `DEPARTURES_MAPBOX_TOKEN` exists. The [Directions API](https://docs.mapbox.com/api/navigation/directions/) documents `driving-traffic`, live/historical traffic behavior, `duration_typical`, credentials, rate limits, and billing. Departures requests only duration/distance and no geometry or steps.
 
-Tokens are not written to state, logs, documentation output, or IPC state. A rejected token enters a one-hour backoff; core timing continues from cache/learning/manual input.
+Tokens are not written to state, logs, documentation output, or IPC state. A rejected token enters a one-hour backoff; AUTO timing continues from cache or learning and MANUAL timing remains fixed.
 
 ## Refresh and cache algorithm
 
-The next three departures are eligible. A newly created route may be fetched once; after that:
+Only AUTO departures among the next three are eligible. A newly created route may be fetched once; after that:
 
 | Time until leave | Refresh no more often than |
 | --- | ---: |
@@ -44,9 +44,10 @@ Routes are keyed by provider, mode, and coordinates rounded to five decimals. At
 - Increases apply immediately when at least 3 minutes and 10% material.
 - Decreases require at least 5 minutes/10% and two consistent observations within 2 minutes of one another.
 - Smaller changes are displayed as observations but do not move leave time.
-- The manual/learned `travelMinutes` baseline is preserved; accepted route time is separate.
+- The preserved `manualTravelMinutes` value remains separate from accepted `autoTravelMinutes`.
 - Route refreshes do not increment the user-edit revision, so GET READY and LEAVE NOW remain deduplicated.
+- MANUAL departures discard queued provider work and ignore any in-flight result.
 
 ## Failure matrix
 
-DNS failure, timeout, malformed JSON, no result, no route, HTTP error, rate limit, and invalid credentials produce normalized failures. None can prevent state hydration, CRUD, timing, notifications, or panel rendering. The fallback order is fresh cache, bounded stale cache, remembered place duration, then manual/default duration.
+DNS failure, timeout, malformed JSON, no result, no route, HTTP error, rate limit, and invalid credentials produce normalized failures. None can prevent state hydration, CRUD, timing, notifications, or panel rendering. AUTO falls back through fresh cache, bounded stale cache, remembered place duration, then its stored automatic fallback. MANUAL stays fixed throughout.

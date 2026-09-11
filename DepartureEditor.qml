@@ -16,6 +16,10 @@ Item {
     property string errorText: ""
     property string infoText: ""
     property bool loading: false
+    property string timingMode: "auto"
+    property int manualTravelMinutes: 20
+    property int autoTravelMinutes: 20
+    property bool hasManualTravel: false
     readonly property bool editing: editingDeparture !== null
     readonly property var derived: Timing.derive(draft())
     signal saveRequested(var draft)
@@ -37,12 +41,17 @@ Item {
         infoText = ""
         var arrival = departure ? Number(departure.arrivalTime) : defaultArrival()
         var defaults = !departure && departuresService ? departuresService.defaultsFor("", "") : null
+        timingMode = departure ? String(departure.timingMode || "auto") : "auto"
+        autoTravelMinutes = departure ? Number(departure.autoTravelMinutes) : (defaults ? defaults.autoTravelMinutes : 20)
+        var storedManual = departure && departure.manualTravelMinutes !== null
+            && departure.manualTravelMinutes !== undefined ? Number(departure.manualTravelMinutes) : NaN
+        hasManualTravel = isFinite(storedManual) && storedManual >= 0
+        manualTravelMinutes = hasManualTravel ? storedManual : autoTravelMinutes
         titleField.text = departure ? String(departure.title || "") : ""
         destinationField.text = departure ? String(departure.destination || "") : ""
         originField.text = departure ? String(departure.origin || "") : (defaults ? String(defaults.origin || "") : "")
         dateField.text = Timing.localDate(arrival)
         timeField.text = Timing.localTime(arrival)
-        travelField.value = departure ? Number(departure.travelMinutes) : (defaults ? defaults.travelMinutes : 20)
         bufferField.value = departure ? Number(departure.arrivalBufferMinutes) : (defaults ? defaults.arrivalBufferMinutes : 5)
         preparationField.value = departure ? Number(departure.preparationMinutes) : (defaults ? defaults.preparationMinutes : 15)
         parkingField.value = departure ? Number(departure.parkingMinutes || 0) : 0
@@ -57,11 +66,25 @@ Item {
         Qt.callLater(function() { titleField.forceActiveFocus() })
     }
 
+    function setTimingMode(mode) {
+        var next = String(mode) === "manual" ? "manual" : "auto"
+        if (next === timingMode) return
+        if (next === "manual" && !hasManualTravel) {
+            manualTravelMinutes = Timing.manualTravelMinutesForSwitch({ timingMode: "auto", autoTravelMinutes: autoTravelMinutes })
+            hasManualTravel = true
+        }
+        timingMode = next
+        infoText = next === "manual" ? "Manual travel time is fixed" : "Automatic routing controls travel time"
+    }
+
     function useSuggestions() {
         if (!departuresService) return
         var values = departuresService.defaultsFor(titleField.text, destinationField.text)
         if (values.origin && !originField.text) originField.text = values.origin
-        travelField.value = values.travelMinutes
+        if (timingMode === "manual") {
+            manualTravelMinutes = values.manualTravelMinutes
+            hasManualTravel = true
+        } else autoTravelMinutes = values.autoTravelMinutes
         bufferField.value = values.arrivalBufferMinutes
         preparationField.value = values.preparationMinutes
         parkingField.value = values.parkingMinutes
@@ -104,7 +127,9 @@ Item {
             destination: destinationField ? destinationField.text : "",
             origin: originField ? originField.text : "",
             arrivalTime: dateField && timeField ? Timing.localDateTime(dateField.text, timeField.text) : NaN,
-            travelMinutes: travelField ? travelField.value : 0,
+            timingMode: timingMode,
+            manualTravelMinutes: hasManualTravel ? manualTravelMinutes : null,
+            autoTravelMinutes: autoTravelMinutes,
             arrivalBufferMinutes: bufferField ? bufferField.value : 0,
             preparationMinutes: preparationField ? preparationField.value : 0,
             parkingMinutes: parkingField ? parkingField.value : 0,
@@ -158,13 +183,13 @@ Item {
             rowSpacing: Style.space(9)
 
             Text { text: "TITLE"; color: Color.foreground; opacity: 0.58; font.family: Style.font.family; font.pixelSize: Style.font.caption }
-            TextField { id: titleField; Layout.fillWidth: true; placeholderText: "School pickup"; maximumLength: 80; onAccepted: destinationField.forceActiveFocus() }
+            TextField { id: titleField; Layout.fillWidth: true; placeholderText: "Morning meeting"; maximumLength: 80; onAccepted: destinationField.forceActiveFocus() }
 
             Text { text: "DESTINATION"; color: Color.foreground; opacity: 0.58; font.family: Style.font.family; font.pixelSize: Style.font.caption }
-            TextField { id: destinationField; Layout.fillWidth: true; placeholderText: "Example City"; maximumLength: 120; onAccepted: dateField.forceActiveFocus() }
+            TextField { id: destinationField; Layout.fillWidth: true; placeholderText: "Central Office"; maximumLength: 120; onAccepted: dateField.forceActiveFocus() }
 
             Text { text: "ORIGIN  OPTIONAL"; color: Color.foreground; opacity: 0.58; font.family: Style.font.family; font.pixelSize: Style.font.caption }
-            TextField { id: originField; Layout.fillWidth: true; placeholderText: "Home, Work, or Current location"; maximumLength: 120 }
+            TextField { id: originField; Layout.fillWidth: true; placeholderText: "123 Example Street or Current location"; maximumLength: 120 }
 
             Text { text: "ARRIVAL"; color: Color.foreground; opacity: 0.58; font.family: Style.font.family; font.pixelSize: Style.font.caption }
             RowLayout {
@@ -177,7 +202,52 @@ Item {
         RowLayout {
             Layout.fillWidth: true
             spacing: Style.space(12)
-            NumberField { id: travelField; label: "TRAVEL  MIN"; from: 0; to: 2880; Layout.fillWidth: true; fieldWidth: parent ? (parent.width - Style.space(24)) / 3 : Style.space(150); onModified: function(next) { value = next } }
+            ColumnLayout {
+                spacing: Style.space(5)
+                Text { text: "TIMING MODE"; color: Color.foreground; opacity: 0.58; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                ButtonGroup {
+                    id: timingModeField
+                    options: [{ value: "auto", label: "AUTO" }, { value: "manual", label: "MANUAL" }]
+                    value: editor.timingMode
+                    onChanged: function(value) { editor.setTimingMode(value) }
+                }
+            }
+            Item { Layout.fillWidth: true }
+            ColumnLayout {
+                spacing: Style.space(3)
+                Text { text: "TRAVEL TIME"; color: Color.foreground; opacity: 0.58; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                Text {
+                    text: editor.timingMode === "auto"
+                        ? editor.autoTravelMinutes + " min  ·  AUTO" + (editor.editingDeparture && editor.editingDeparture.routeProvider ? " · " + String(editor.editingDeparture.routeProvider).toUpperCase() : "MATIC ROUTING")
+                        : editor.manualTravelMinutes + " min  ·  FIXED"
+                    color: editor.timingMode === "auto" ? Color.accent : Color.foreground
+                    font.family: "monospace"
+                    font.pixelSize: Style.font.body
+                    font.bold: true
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Style.space(12)
+            NumberField {
+                id: travelField
+                label: editor.timingMode === "manual" ? "TRAVEL  MIN" : "TRAVEL  MIN · AUTO"
+                from: 0
+                to: 2880
+                value: editor.timingMode === "manual" ? editor.manualTravelMinutes : editor.autoTravelMinutes
+                enabled: editor.timingMode === "manual"
+                opacity: enabled ? 1 : 0.38
+                Layout.fillWidth: true
+                fieldWidth: parent ? (parent.width - Style.space(24)) / 3 : Style.space(150)
+                onModified: function(next) {
+                    if (editor.timingMode === "manual") {
+                        editor.manualTravelMinutes = next
+                        editor.hasManualTravel = true
+                    }
+                }
+            }
             NumberField { id: bufferField; label: "BUFFER  MIN"; from: 0; to: 2880; Layout.fillWidth: true; fieldWidth: parent ? (parent.width - Style.space(24)) / 3 : Style.space(150); onModified: function(next) { value = next } }
             NumberField { id: preparationField; label: "PREP  MIN"; from: 0; to: 2880; Layout.fillWidth: true; fieldWidth: parent ? (parent.width - Style.space(24)) / 3 : Style.space(150); onModified: function(next) { value = next } }
         }
