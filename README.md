@@ -68,6 +68,8 @@ scripts/quality
 
 `scripts/quality` runs domain tests, the current Omarchy manifest validator, QML lint when installed, shell syntax checks, ShellCheck when installed, and whitespace validation.
 
+See [testing and acceptance](docs/TESTING.md) for coverage and the Omarchy 4.0.3 local acceptance record.
+
 ## Scope
 
 Version 0.1 deliberately excludes calendars, live traffic, maps, weather, public transport, flight tracking, cloud synchronization, and AI. Its one job is to make leave time obvious.
