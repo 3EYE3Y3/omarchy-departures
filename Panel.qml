@@ -180,7 +180,7 @@ Panel {
                                             Layout.preferredWidth: Style.space(150)
                                             spacing: 0
                                             Text { text: "LEAVE"; color: Color.accent; opacity: 0.72; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
-                                            Text { text: Timing.localTime(row.modelData.leaveTime); color: row.modelData.status === "LEAVE NOW" ? Color.urgent : Color.accent; font.family: "monospace"; font.pixelSize: Style.font.hero; font.bold: true }
+                                            Text { text: Timing.localTime(row.modelData.leaveTime); color: row.modelData.status === "LEAVE NOW" ? Color.urgent : Color.accent; font.family: "monospace"; font.pixelSize: Style.font.display; font.bold: true }
                                         }
                                         ColumnLayout {
                                             spacing: Style.space(3)
