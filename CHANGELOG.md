@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.1 — 2026-09-11
+
+- Replace the single-departure card and rebuilt `Repeater` with a compact airport-style board containing every upcoming departure, grouped by day.
+- Keep row delegates, scroll position, and details context stable through clock ticks, hydration, route results, notifications, and CRUD updates with ID-keyed in-place model reconciliation.
+- Make leave time the board's dominant value while retaining aligned arrival, destination, concise status, timing source, and freshness information.
+- Refresh Automatic routes immediately on save, edit, location change, or activation, then use one leave-time-aware scheduler for all upcoming Automatic departures.
+- Add provider-aware refresh floors, global request spacing, deterministic failure backoff, saved-time fallback, and an explicit route-needed state without exposing raw errors on the board.
+- Preserve Fixed time isolation, asymmetric route-change stabilization, notification deduplication, and the permanent fictional-data privacy contract.
+
 ## 0.3.0 — 2026-09-11
 
 - Redesign the panel around destination, next action, leave time, travel duration, and timing source.

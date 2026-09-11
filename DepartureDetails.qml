@@ -11,6 +11,7 @@ Item {
 
     property var departure: null
     property var departuresService: null
+    property double now: Date.now()
     property bool routingExpanded: false
     property string actionMessage: ""
     readonly property var derived: Timing.derive(departure || {})
@@ -34,7 +35,7 @@ Item {
     function retry() {
         if (!departuresService || !departure) return
         var result = departuresService.retryRoute(departure.id)
-        actionMessage = result.ok ? "Trying automatic routing again…" : result.errors.join(" · ")
+        actionMessage = result.ok ? String(result.message || "Refreshing route now…") : result.errors.join(" · ")
     }
 
     ColumnLayout {
@@ -84,7 +85,10 @@ Item {
                     { label: "Get ready", value: details.safeTime(details.derived.getReadyTime) },
                     { label: "Leave by", value: Presentation.hasUsableTiming(details.departure) ? details.safeTime(details.derived.leaveTime) : "—" },
                     { label: "Arrive by", value: details.safeTime(details.derived.targetArrivalTime) },
-                    { label: "Travel", value: Presentation.travelLine(details.departure).replace(/^Travel /, "") }
+                    { label: "Arrival", value: details.safeTime(details.derived.eventTime) },
+                    { label: "Travel", value: Presentation.travelLine(details.departure).replace(/^Travel /, "") },
+                    { label: "Freshness", value: details.departure && details.departure.timingMode === "manual"
+                        ? "Fixed time" : (Presentation.freshness(details.departure && details.departure.routeCheckedAt, details.now) || "Not checked yet") }
                 ]
                 delegate: Rectangle {
                     id: timingCell
@@ -140,14 +144,19 @@ Item {
                 RowLayout {
                     Layout.fillWidth: true
                     visible: details.departure && details.departure.timingMode === "auto"
-                        && String(details.departure.routeStatus || "") === "fallback"
                     Button {
-                        text: "RETRY"
+                        text: "REFRESH NOW"
                         enabled: details.departuresService && details.departuresService.settings.networkEnabled
                         focusable: true
                         onClicked: details.retry()
                     }
-                    Button { text: "EDIT LOCATIONS"; focusable: true; onClicked: details.editRequested(details.departure) }
+                    Button {
+                        visible: String(details.departure && details.departure.routeStatus || "") === "fallback"
+                            || !Presentation.hasUsableTiming(details.departure)
+                        text: "EDIT LOCATIONS"
+                        focusable: true
+                        onClicked: details.editRequested(details.departure)
+                    }
                     Item { Layout.fillWidth: true }
                 }
 
@@ -191,7 +200,7 @@ Item {
         }
 
         Button {
-            text: details.routingExpanded ? "HIDE ROUTING DETAILS" : "ROUTING DETAILS"
+            text: details.routingExpanded ? "HIDE TECHNICAL DETAILS" : "ADVANCED / TECHNICAL"
             focusable: true
             onClicked: details.routingExpanded = !details.routingExpanded
         }

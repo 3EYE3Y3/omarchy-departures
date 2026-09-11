@@ -8,13 +8,13 @@ Departures is an arrival-first assistant for Omarchy. Tell it where you are goin
 Dentist tomorrow at 2pm at City Dental Clinic
 ```
 
-The bar stays compact. The panel leads with destination, arrival, next action, leave time, and travel duration. Routing details stay out of the way unless you ask for them or need to fix something.
+The bar stays compact. The panel is a departures board: every upcoming trip is shown in aligned ARRIVE, DESTINATION, LEAVE, and STATUS columns, with compact day groups and a single next-action strip. Select a row for timing, reminders, routing freshness, Retry, Edit, and Delete. Technical routing details stay out of the way unless you ask for them.
 
 ## Travel time
 
 Every departure uses exactly one travel-time source:
 
-- **Automatic** (the default) refreshes a route estimate when routing is available and safely keeps the most recent usable duration when it is not.
+- **Automatic** (the default) fetches a route when saved and keeps refreshing it more often as leave time approaches. It safely keeps the most recent usable duration when routing is temporarily unavailable.
 - **Fixed time** uses the duration you enter. Route refreshes are paused and cannot move travel, leave, get-ready, or notification timing.
 
 Internally these remain mutually exclusive AUTO/MANUAL modes. Their values are stored separately, so switching is predictable and a previous fixed value is restored when switching back.
@@ -25,7 +25,7 @@ Internally these remain mutually exclusive AUTO/MANUAL modes. Their values are s
 - Repeated travel, safety, parking, walking, preparation, and preferred-origin values become that place's defaults.
 - Work, Gym, Hockey, Airport, School, Fishing, Sport, and Shopping bring kits work immediately.
 - Edited reminder lists can be remembered as the kit for that activity.
-- Ready items are checked directly on the next-departure board.
+- Reminders stay available in a departure's details without crowding the board.
 
 Everything learned is ordinary local data—not analytics or an AI service. It can be viewed, edited, removed, or reset through the CLI.
 
@@ -78,9 +78,9 @@ This enables:
 
 - Nominatim/OpenStreetMap forward geocoding, cached per saved place
 - OSRM/OpenStreetMap no-key driving routes, cached per coordinate pair and mode
-- progressively scheduled refreshes near the next departure
+- leave-time-aware route refreshes for every upcoming Automatic departure
 
-Public community endpoints are best-effort rather than an availability guarantee. If routing cannot refresh but a saved duration exists, the primary panel remains usable and quietly says that saved timing is in use. Provider identity, the failure reason, Retry, and Edit locations are available under View details → Routing details. Disable external calls at any time:
+Public community endpoints are best-effort rather than an availability guarantee. If routing cannot refresh but a saved duration exists, the board remains usable and quietly says that saved timing is in use. If no duration exists, the row says `ROUTE NEEDED` instead of inventing a leave time. Provider identity, failure reason, Refresh now, and Edit locations are available after selecting the row. Disable external calls at any time:
 
 ```bash
 bin/departures config network off
@@ -153,7 +153,7 @@ npm test
 scripts/quality
 ```
 
-See [architecture](docs/ARCHITECTURE.md), [testing and acceptance](docs/TESTING.md), and [Omarchy compatibility](docs/UPSTREAM_COMPATIBILITY.md).
+See [architecture](docs/ARCHITECTURE.md), [board stability diagnosis](docs/BOARD_STABILITY.md), [testing and acceptance](docs/TESTING.md), and [Omarchy compatibility](docs/UPSTREAM_COMPATIBILITY.md).
 
 ## License
 

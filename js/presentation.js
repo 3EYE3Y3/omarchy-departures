@@ -37,6 +37,29 @@ function travelLine(departure) {
     return "Travel " + travel + " min · " + timingSource(departure)
 }
 
+function freshness(checkedAt, now) {
+    var checked = Number(checkedAt)
+    if (!isFinite(checked) || checked <= 0) return ""
+    var elapsed = Math.max(0, Number(now) - checked)
+    if (elapsed < 60000) return "just now"
+    var minutes = Math.floor(elapsed / 60000)
+    if (minutes < 60) return minutes + "m ago"
+    var hours = Math.floor(minutes / 60)
+    if (hours < 24) return hours + "h ago"
+    return Math.floor(hours / 24) + "d ago"
+}
+
+function compactTimingLine(mode, travelMinutes, routeStatus, checkedAt, now, trafficAware) {
+    var travel = Number(travelMinutes)
+    if (!isFinite(travel) || travel < 0) return "ROUTE NEEDED"
+    if (String(mode || "auto").toLowerCase() === "manual") return "Fixed · " + Math.round(travel) + "m"
+    var status = String(routeStatus || "").toLowerCase()
+    if (status === "fallback") return "Automatic · saved " + Math.round(travel) + "m"
+    var result = (trafficAware === true ? "Live" : "Automatic") + " · " + Math.round(travel) + "m"
+    var age = freshness(checkedAt, now)
+    return age ? result + " · " + age : result
+}
+
 function impact(departure) {
     if (!hasUsableTiming(departure)) {
         return {

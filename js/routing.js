@@ -33,16 +33,40 @@ function cacheReferences(key, point) {
         || (parts[4] === latitude && parts[5] === longitude)
 }
 
-function refreshInterval(untilLeaveMs) {
+function providerMinimumInterval(provider) {
+    return String(provider || "osrm").toLowerCase() === "mapbox" ? MINUTE_MS : 5 * MINUTE_MS
+}
+
+function refreshInterval(untilLeaveMs, provider) {
     var remaining = finite(untilLeaveMs, Infinity)
     if (remaining <= 0) return Infinity
-    if (remaining > 7 * DAY_MS) return Infinity
-    if (remaining > DAY_MS) return 6 * HOUR_MS
-    if (remaining > 6 * HOUR_MS) return 3 * HOUR_MS
-    if (remaining > 2 * HOUR_MS) return HOUR_MS
-    if (remaining > 30 * MINUTE_MS) return 15 * MINUTE_MS
-    if (remaining > 10 * MINUTE_MS) return 5 * MINUTE_MS
-    return 2 * MINUTE_MS
+    var adaptive = remaining > 12 * HOUR_MS ? 3 * HOUR_MS
+        : (remaining >= 6 * HOUR_MS ? HOUR_MS
+            : (remaining >= 2 * HOUR_MS ? 30 * MINUTE_MS
+                : (remaining >= 30 * MINUTE_MS ? 10 * MINUTE_MS
+                    : (remaining >= 10 * MINUTE_MS ? 4 * MINUTE_MS : MINUTE_MS))))
+    return Math.max(adaptive, providerMinimumInterval(provider))
+}
+
+function nextRefreshAt(departure, now, provider) {
+    if (!isAutomaticTiming(departure)) return Infinity
+    var leaveTime = Number(departure && departure.leaveTime)
+    if (!isFinite(leaveTime)) return Number(now)
+    var interval = refreshInterval(leaveTime - Number(now), provider)
+    if (!isFinite(interval)) return Infinity
+    var checked = Number(departure && departure.routeCheckedAt)
+    return isFinite(checked) && checked > 0 ? checked + interval : Number(now)
+}
+
+function refreshDue(departure, now, provider) {
+    return nextRefreshAt(departure, now, provider) <= Number(now)
+}
+
+function backoffInterval(code, retryable) {
+    var value = String(code || "")
+    if (value === "invalid_credentials") return HOUR_MS
+    if (value === "rate_limited") return 15 * MINUTE_MS
+    return retryable === true ? 5 * MINUTE_MS : DAY_MS
 }
 
 function cacheEntry(result, now, ttlMs) {
