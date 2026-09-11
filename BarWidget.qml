@@ -86,6 +86,9 @@ BarWidget {
         function remove(id: string): string {
             return JSON.stringify({ ok: root.departuresService ? root.departuresService.deleteDeparture(id) : false })
         }
+        function ready(id: string, item: string): string {
+            return JSON.stringify({ ok: root.departuresService ? root.departuresService.toggleReadyItem(id, item) : false })
+        }
         function places(): string {
             return JSON.stringify(root.departuresService ? root.departuresService.places : [])
         }

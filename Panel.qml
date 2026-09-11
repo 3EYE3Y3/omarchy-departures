@@ -176,7 +176,7 @@ Panel {
                     QQC.ScrollView {
                         visible: root.upcoming.length > 0
                         Layout.fillWidth: true
-                        Layout.preferredHeight: Math.min(Style.space(485), departuresColumn.implicitHeight)
+                        Layout.preferredHeight: Math.min(Style.space(485), Math.max(Style.space(175), root.upcoming.length * Style.space(175)))
                         clip: true
                         QQC.ScrollBar.horizontal.policy: QQC.ScrollBar.AlwaysOff
 
