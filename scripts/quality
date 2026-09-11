@@ -21,7 +21,7 @@ else
   echo "SKIP qmllint (not installed)"
 fi
 
-bash -n scripts/quality
-if command -v shellcheck >/dev/null; then shellcheck scripts/quality; else echo "SKIP shellcheck (not installed)"; fi
+bash -n scripts/quality bin/departures
+if command -v shellcheck >/dev/null; then shellcheck scripts/quality bin/departures; else echo "SKIP shellcheck (not installed)"; fi
 git diff --check
 git diff --cached --check

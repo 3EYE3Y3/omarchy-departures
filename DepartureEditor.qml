@@ -23,8 +23,8 @@ Item {
 
     function defaultArrival() {
         var date = new Date(Date.now() + 90 * Timing.MINUTE_MS)
-        date.setMinutes(0, 0, 0)
-        date.setHours(date.getHours() + 1)
+        date.setSeconds(0, 0)
+        date.setMinutes(Math.ceil(date.getMinutes() / 15) * 15)
         return date.getTime()
     }
 

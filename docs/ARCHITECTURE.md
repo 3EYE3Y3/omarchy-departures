@@ -9,6 +9,7 @@ Departures follows Omarchy 4.0.3's public third-party plugin contract.
 - `js/domain.js` validates and mutates records without QML dependencies.
 - `js/notification_state.js` decides notification eligibility and durable deduplication keys.
 - `js/profiles.js` contains intentionally lightweight presets.
+- `bin/departures` is a thin local IPC client; it contains no daemon or storage logic.
 
 Plugin-local resources are resolved with `Qt.resolvedUrl`. No code reads private manifest metadata such as `manifest.__sourceDir`.
 

@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat >&2 <<'USAGE'
+Usage:
+  departures open
+  departures state
+  departures snapshot
+  departures add '<json>'
+  departures update '<json-with-id>'
+  departures remove <id>
+USAGE
+  exit 2
+}
+
+action="${1:-}"
+case "$action" in
+open)
+  exec omarchy-shell shell summon io.github.3eye3y3.departures '{}'
+  ;;
+state | snapshot)
+  exec omarchy-shell departures "$action"
+  ;;
+add | update | remove)
+  [[ $# -eq 2 ]] || usage
+  exec omarchy-shell departures "$action" "$2"
+  ;;
+*)
+  usage
+  ;;
+esac
