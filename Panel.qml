@@ -84,6 +84,14 @@ Panel {
         PanelKeyCatcher {
             id: keyCatcher
             anchors.fill: parent
+            Keys.priority: Keys.BeforeItem
+            Keys.onPressed: function(event) {
+                if (root.view === "editor" && (event.modifiers & Qt.ControlModifier)
+                        && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) {
+                    editor.submit()
+                    event.accepted = true
+                }
+            }
             Keys.onEscapePressed: root.view === "editor" ? root.leaveEditor() : root.close()
 
             Item {
