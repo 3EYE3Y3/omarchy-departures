@@ -20,11 +20,11 @@ open)
   exec omarchy-shell shell summon io.github.3eye3y3.departures '{}'
   ;;
 state | snapshot)
-  exec omarchy-shell departures "$action"
+  exec omarchy-shell io.github.3eye3y3.departures "$action"
   ;;
 add | update | remove)
   [[ $# -eq 2 ]] || usage
-  exec omarchy-shell departures "$action" "$2"
+  exec omarchy-shell io.github.3eye3y3.departures "$action" "$2"
   ;;
 *)
   usage
