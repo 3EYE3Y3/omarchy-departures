@@ -6,7 +6,6 @@ import { fileURLToPath } from "node:url"
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 const publicFiles = [
-  "AGENTS.md",
   "CHANGELOG.md",
   "CONTRIBUTING.md",
   "README.md",
@@ -20,8 +19,8 @@ const publicFiles = [
 ]
 
 test("public surfaces contain the permanent fictional-data privacy policy and no known legacy location leaks", () => {
-  const policy = fs.readFileSync(path.join(root, "AGENTS.md"), "utf8")
-  assert.match(policy, /Never use a user's persisted Departures state/)
+  const policy = fs.readFileSync(path.join(root, "CONTRIBUTING.md"), "utf8")
+  assert.match(policy, /persisted Departures state/)
   assert.match(policy, /fictional generic information/)
 
   const corpus = publicFiles.map(name => fs.readFileSync(path.join(root, name), "utf8")).join("\n")

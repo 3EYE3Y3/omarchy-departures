@@ -14,4 +14,6 @@ Keep deterministic behavior in the pure JavaScript modules and cover it with Nod
 
 Every screenshot, demo, fixture, documentation example, release image, and other public asset must contain only clearly fictional generic information. Never use a contributor's persisted Departures state, saved places, real addresses, precise personal coordinates, names, routines, travel history, or appointments.
 
-Use an isolated temporary state directory for visual or live acceptance data. Examples such as `Morning Meeting`, `Central Office`, `123 Example Street`, `City Dental Clinic`, and `45 Sample Road` are suitable. Preserve the user's real state before testing, restore it afterward, remove the temporary state, and manually inspect every image before it is committed or uploaded. State files and other private data must never be committed.
+Use an isolated temporary state directory for visual or live acceptance data. Examples such as `Morning Meeting`, `Central Office`, `123 Example Street`, `City Dental Clinic`, and `45 Sample Road` are suitable.
+
+Before capturing anything: stop or isolate the shell, copy the real state file to a private backup without displaying its contents, and do not capture the desktop until the isolated fictional state is active. Afterward, restore the original state byte-for-byte, verify the restored file's checksum, and remove the temporary state and captures. Manually inspect every image before it is committed or uploaded. State files and other private data must never be committed.
