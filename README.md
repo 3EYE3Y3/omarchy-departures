@@ -12,6 +12,8 @@ Dentist tomorrow at 2pm at City Dental Clinic
 
 The bar stays compact. The panel is a departures board: every upcoming trip is shown in aligned ARRIVE, DESTINATION, LEAVE, and STATUS columns, with compact day groups and a single next-action strip. Select a row for timing, reminders, routing freshness, Retry, Edit, and Delete. Technical routing details stay out of the way unless you ask for them.
 
+Requires Omarchy 4.0.3 or later and Quickshell 0.3.1 (schema version 1 plugin manifest); see [Omarchy compatibility](docs/UPSTREAM_COMPATIBILITY.md) for details.
+
 ## Travel time
 
 Every departure uses exactly one travel-time source:
@@ -49,6 +51,16 @@ Click the bar item to open the board, or run:
 bin/departures open
 bin/departures new
 ```
+
+## Update and remove
+
+```bash
+omarchy plugin update io.github.3eye3y3.departures
+omarchy plugin disable io.github.3eye3y3.departures
+omarchy plugin remove io.github.3eye3y3.departures --yes
+```
+
+`disable` turns the bar widget and service off without deleting anything; `remove` uninstalls the plugin from Omarchy. Neither command touches the local state file — delete `$XDG_STATE_HOME/omarchy/departures/state.json` (or `~/.local/state/omarchy/departures/state.json`) yourself if you also want to erase saved departures, places, and kits.
 
 ## Fast creation
 
