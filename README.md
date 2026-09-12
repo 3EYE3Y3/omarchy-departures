@@ -1,8 +1,10 @@
 # Departures
 
-> Know when to go.
+> Know when to get ready. Know when to leave.
 
-Departures is an arrival-first assistant for Omarchy. Tell it where you are going and when you need to arrive; it makes the next action and leave time obvious.
+![Departures preview: the Omarchy bar widget and open panel showing upcoming fictional departures](preview.png)
+
+Departures is a lightweight departure-planning companion for Omarchy. Add a departure with when you need to arrive, and Departures works backwards to tell you when to get ready and when to leave — with the next one always visible from the bar.
 
 ```text
 Dentist tomorrow at 2pm at City Dental Clinic
