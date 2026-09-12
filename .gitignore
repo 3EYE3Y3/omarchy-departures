@@ -3,3 +3,13 @@ node_modules/
 *.log
 .env
 .env.*
+
+# Local-only coding-agent instruction/control files — never distributed
+# with the plugin (see CONTRIBUTING.md for the human-facing equivalent).
+AGENTS.md
+CLAUDE.md
+CODEX.md
+.claude/
+.cursorrules
+.windsurfrules
+.aider*
