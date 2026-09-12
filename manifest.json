@@ -5,7 +5,7 @@
   "version": "0.3.1",
   "author": "3EYE3Y3",
   "license": "MIT",
-  "description": "Autonomous arrival-first planning: know when to get ready and leave.",
+  "description": "Plan when to get ready and leave, with your next departure always visible from the Omarchy bar.",
   "kinds": ["service", "bar-widget"],
   "entryPoints": {
     "service": "Service.qml",

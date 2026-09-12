@@ -30,6 +30,21 @@ The v0.3.1 suite contains 110 tests and runs on Node.js 26.
 
 The installed Qt `qmllint` cannot statically infer the members of Omarchy's dynamic `Style.font` object, injected bar facade, or `Loader.item`, and Quickshell's metadata does not expose `QProcess::ExitStatus` to the linter. It reports those known `missing-property`/signal-metadata warnings while returning success. Live shell testing produced no Departures runtime warning. ShellCheck was not installed; `bash -n` passed for both scripts.
 
+## Routing-update shell/lifecycle audit (marketplace readiness)
+
+A routing data update or departure recalculation must never restart or reload the Omarchy shell, Quickshell, or the plugin itself — only the service's own reactive state should change, with the bar and panel updating through normal QML bindings.
+
+Static audit of every reachable path from a routing update (`Service.qml`'s network queue, `startNextNetwork`, `finishNetwork`, `applyRouteResult`, and the periodic `refresh` timer):
+
+- No call to `omarchy-restart-shell`, `systemctl`, `pkexec`/`sudo`, `pkill`/`killall`, or any Quickshell shell-reload/re-exec API exists anywhere in the plugin.
+- The only `.restart()` calls in the codebase (`Panel.qml`'s `deleteReset` and `Service.qml`'s `networkDelay`) are QML `Timer` objects local to the plugin — restarting a countdown, unrelated to process or shell lifecycle.
+- The three `Process { }` blocks in `Service.qml` (`stateWriter`, `notificationProcess`, `networkProcess`) each run one bounded, already-declared command (state write, `omarchy-notification-send`, or a routing `curl`) and exit back into the service; none of them exec the shell, the plugin's own manifest, or an install/enable command.
+- The `FileView` that loads plugin state (`stateFile`) is read once (`preload: true`) at service startup and is never re-triggered by a routing result, so a route update cannot cause a manifest/state reload path.
+
+This matches the documented [board-stability fix](BOARD_STABILITY.md): the board is one long-lived `ListModel` reconciled by departure ID (`js/board.js`), and `board.test.mjs` asserts zero model operations for an unrelated update and exactly one patched row for a route result, with unrelated row identity preserved. Those automated contracts are the regression guard for this property and pass in the current suite (see Automated, above).
+
+Live verification for this audit was intentionally scoped to avoid touching the operator's real running instance and real persisted state (the same plugin was already installed and enabled live during this work): rather than issuing CLI/IPC commands against the live shell, the audit relied on (1) the static-path review above, (2) the existing automated reconciliation tests, and (3) confirming the live `quickshell` process PID stayed constant for the entire duration of this marketplace-preparation session, since no plugin-affecting command was ever issued against it. No shell restart, plugin reload, or flicker was observed or expected from routing updates under this design.
+
 ## v0.3.1 stable-board acceptance
 
 - Stopped the shell, moved the user's state into an opaque checksum-protected backup, and ran every scenario against isolated fictional records only. No capture of the user's persisted state was made.
