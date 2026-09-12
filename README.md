@@ -4,13 +4,24 @@
 
 ![Departures preview: the Omarchy bar widget and open panel showing upcoming fictional departures](preview.png)
 
-Departures is a lightweight departure-planning companion for Omarchy. Add a departure with when you need to arrive, and Departures works backwards to tell you when to get ready and when to leave — with the next one always visible from the bar.
+Departures is a lightweight departure-planning companion for Omarchy. Add a departure with when you need to arrive, and Departures works backwards from your preparation and travel time to tell you when to start getting ready and when to leave.
 
 ```text
 Dentist tomorrow at 2pm at City Dental Clinic
 ```
 
-The bar stays compact. The panel is a departures board: every upcoming trip is shown in aligned ARRIVE, DESTINATION, LEAVE, and STATUS columns, with compact day groups and a single next-action strip. Select a row for timing, reminders, routing freshness, Retry, Edit, and Delete. Technical routing details stay out of the way unless you ask for them.
+The compact Omarchy bar widget keeps your next departure visible without becoming distracting. The full panel presents upcoming plans as a clear departures board with aligned arrival, destination, leave, and status information, grouped by day with a single next-action strip. Select a row for timing, reminders, routing freshness, Retry, Edit, and Delete. Technical routing details stay out of the way unless you ask for them.
+
+## Features
+
+- Your next departure always visible from the Omarchy bar
+- Automatic Get Ready and Leave Now times calculated backwards from arrival
+- Structured departure creation plus deterministic natural-language quick-add
+- Optional automatic travel-time routing using no-key Nominatim/OSRM, or traffic-aware Mapbox routing with your own token
+- Saved places and reusable bring kits
+- Desktop notifications at Get Ready and Leave Now
+- Local-only storage with no account, cloud sync, or analytics
+- Native Omarchy bar-widget and service integration
 
 Requires Omarchy 4.0.3 or later and Quickshell 0.3.1 (schema version 1 plugin manifest); see [Omarchy compatibility](docs/UPSTREAM_COMPATIBILITY.md) for details.
 
