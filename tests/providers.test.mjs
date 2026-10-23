@@ -1,5 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import fs from "node:fs"
+import vm from "node:vm"
 import { loadQmlJs } from "./load-qml-js.mjs"
 
 const Providers = loadQmlJs(new URL("../js/providers.js", import.meta.url))
@@ -70,4 +72,57 @@ test("network failures classify DNS, timeout, credentials, and rate limits", () 
   assert.equal(Providers.networkFailure("osrm", 28, "").error.code, "timeout")
   assert.equal(Providers.networkFailure("mapbox", 22, "HTTP 401").error.code, "invalid_credentials")
   assert.equal(Providers.networkFailure("mapbox", 22, "HTTP 429").error.code, "rate_limited")
+})
+
+const serviceSource = fs.readFileSync(new URL("../Service.qml", import.meta.url), "utf8")
+const startNetworkSource = serviceSource.slice(serviceSource.indexOf("    function startNextNetwork()"),
+  serviceSource.indexOf("    function networkFailure("))
+const networkStartedSource = serviceSource.match(/id: networkProcess[\s\S]*?onStarted: \{([\s\S]*?)\n        \}/)[1]
+
+for (const provider of ["mapbox", "osrm", "nominatim"]) {
+  test(`${provider} sends its URL only through curl stdin, including consecutive requests`, () => {
+    const origin = { latitude: 10, longitude: 20 }
+    const destination = { latitude: 11, longitude: 21 }
+    const request = provider === "mapbox" ? Providers.mapboxRequest(origin, destination, "drive", "fictional-token")
+      : provider === "osrm" ? Providers.osrmRequest(origin, destination, "drive")
+      : Providers.nominatimRequest("123 Example Street", "")
+    const writes = []
+    const networkProcess = {
+      running: false,
+      stdinEnabled: false,
+      write(value) {
+        assert.equal(this.stdinEnabled, true)
+        writes.push(value)
+      },
+    }
+    const context = vm.createContext({
+      Providers, networkProcess, settings: { networkEnabled: true, countryCodes: "" },
+      lastNominatimAt: 0, lastProviderRequestAt: {}, routeRequestCount: 0,
+      activeNetworkJob: null,
+    })
+    context.service = context
+    vm.runInContext(startNetworkSource, context)
+    for (let i = 0; i < 2; i++) {
+      context.networkQueue = [{ kind: request.kind, provider, request, query: "123 Example Street" }]
+      context.lastNominatimAt = 0
+      context.lastProviderRequestAt = {}
+      networkProcess.running = false
+      vm.runInContext("startNextNetwork()", context)
+      assert.equal(networkProcess.running, true)
+      assert.equal(networkProcess.stdinEnabled, true)
+      assert.deepEqual(Array.from(networkProcess.command), [
+        "curl", "--silent", "--show-error", "--fail-with-body", "--max-time", "8",
+        "--connect-timeout", "3", "--user-agent", request.userAgent, "--config", "-",
+      ])
+      vm.runInContext(networkStartedSource, context)
+      assert.equal(networkProcess.stdinEnabled, false)
+      assert.equal(writes[i], `url = "${request.url}"\n`)
+    }
+  })
+}
+
+test("curl config quotes URLs and escapes config delimiters and control characters", () => {
+  const url = 'https://example.invalid/"\\\nurl = "injected\r\t\v'
+  assert.equal(Providers.curlConfig({ url }),
+    'url = "https://example.invalid/\\"\\\\\\nurl = \\"injected\\r\\t\\v"\n')
 })

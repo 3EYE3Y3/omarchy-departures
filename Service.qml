@@ -534,7 +534,8 @@ Item {
         }
         activeNetworkJob = job
         networkProcess.command = ["curl", "--silent", "--show-error", "--fail-with-body", "--max-time", "8",
-            "--connect-timeout", "3", "--user-agent", job.request.userAgent, job.request.url]
+            "--connect-timeout", "3", "--user-agent", job.request.userAgent, "--config", "-"]
+        networkProcess.stdinEnabled = true
         networkProcess.running = true
     }
 
@@ -782,6 +783,10 @@ Item {
         id: networkProcess
         running: false
         command: []
+        onStarted: {
+            networkProcess.write(Providers.curlConfig(service.activeNetworkJob.request))
+            networkProcess.stdinEnabled = false
+        }
         stdout: StdioCollector { id: networkOutput; waitForEnd: true }
         stderr: StdioCollector { id: networkError; waitForEnd: true }
         onExited: function(code) { service.finishNetwork(code, networkOutput.text, networkError.text) }

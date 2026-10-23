@@ -133,6 +133,12 @@ function query(value) {
     return encodeURIComponent(String(value || ""))
 }
 
+function curlConfig(request) {
+    var url = String(request.url).replace(/\\/g, "\\\\").replace(/"/g, '\\"')
+        .replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/\t/g, "\\t").replace(/\v/g, "\\v")
+    return 'url = "' + url + '"\n'
+}
+
 function coordinatePair(point) {
     var normalized = coordinates(point)
     return normalized ? normalized.longitude.toFixed(6) + "," + normalized.latitude.toFixed(6) : ""
