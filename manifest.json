@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.3eye3y3.departures",
   "name": "Departures",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "author": "3EYE3Y3",
   "license": "MIT",
   "description": "Plan when to get ready and leave, with your next departure always visible from the Omarchy bar.",

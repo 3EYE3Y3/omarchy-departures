@@ -11,7 +11,7 @@ const packageMetadata = JSON.parse(fs.readFileSync(path.join(root, "package.json
 test("manifest declares the supported Omarchy v1 service and bar contracts", () => {
   assert.equal(manifest.schemaVersion, 1)
   assert.equal(manifest.id, "io.github.3eye3y3.departures")
-  assert.equal(manifest.version, "0.3.1")
+  assert.equal(manifest.version, "0.3.2")
   assert.deepEqual(manifest.kinds, ["service", "bar-widget"])
   assert.equal(manifest.barWidget.allowMultiple, false)
   assert.equal(manifest.barWidget.defaultSection, "center")

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.2 — 2026-10-23
+
+- Pass provider requests to curl through its standard-input configuration, so the Mapbox token and route coordinates no longer appear in the process list where other local users or monitoring tools could read them.
+
 ## 0.3.1 — 2026-09-11
 
 - Replace the single-departure card and rebuilt `Repeater` with a compact airport-style board containing every upcoming departure, grouped by day.
